@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LogOut, Upload, Loader2, CheckCircle2, AlertCircle, Download } from 'lucide-react';
+import { LogOut, Upload, Loader2, Download, X } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import { useLocation } from 'wouter';
 import * as XLSX from 'xlsx';
@@ -44,10 +44,17 @@ interface RelatorioImportacao {
   detalhes: string[];
 }
 
+interface Filtros {
+  busca: string;
+  uf: string;
+  ddd: string;
+  municipio: string;
+}
+
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const [vendedor, setVendedor] = useState<Vendedor | null>(null);
-  const [leads, setLeads] = useState<Lead[]>([]);
+  const [todosLeads, setTodosLeads] = useState<Lead[]>([]);
   const [meusLeads, setMeusLeads] = useState<Lead[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [processando, setProcessando] = useState(false);
@@ -55,6 +62,14 @@ export default function Dashboard() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [arquivoSelecionado, setArquivoSelecionado] = useState<File | null>(null);
   const [relatorio, setRelatorio] = useState<RelatorioImportacao | null>(null);
+  const [filtros, setFiltros] = useState<Filtros>({
+    busca: '',
+    uf: '',
+    ddd: '',
+    municipio: ''
+  });
+  const [pagina, setPagina] = useState(1);
+  const ITENS_POR_PAGINA = 50;
 
   useEffect(() => {
     carregarDados();
@@ -98,15 +113,15 @@ export default function Dashboard() {
         setIsAdmin(vendedorData.is_admin || false);
       }
 
-      // Carregar leads disponíveis
+      // Carregar TODOS os leads disponíveis
       const { data: leadsData } = await supabase
         .from('leads')
         .select('*')
         .is('claimed_by', null)
-        .order('created_at', { ascending: false })
-        .limit(100);
+        .order('created_at', { ascending: false });
 
-      setLeads(leadsData || []);
+      setTodosLeads(leadsData || []);
+      setPagina(1);
 
       // Carregar meus leads
       if (user.id) {
@@ -124,6 +139,53 @@ export default function Dashboard() {
       setCarregando(false);
     }
   };
+
+  // Filtrar leads baseado nos critérios
+  const leadsFiltrados = useMemo(() => {
+    return todosLeads.filter(lead => {
+      // Filtro por busca (razão social)
+      if (filtros.busca && !lead.razao_social.toLowerCase().includes(filtros.busca.toLowerCase())) {
+        return false;
+      }
+
+      // Filtro por UF
+      if (filtros.uf && lead.uf !== filtros.uf) {
+        return false;
+      }
+
+      // Filtro por DDD (primeiros 2 dígitos do telefone)
+      if (filtros.ddd && !lead.telefone?.startsWith(filtros.ddd)) {
+        return false;
+      }
+
+      // Filtro por município
+      if (filtros.municipio && lead.municipio !== filtros.municipio) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [todosLeads, filtros]);
+
+  // Paginação
+  const leadsExibidos = leadsFiltrados.slice(0, pagina * ITENS_POR_PAGINA);
+  const temMais = leadsExibidos.length < leadsFiltrados.length;
+
+  // Extrair UFs e municípios únicos para dropdowns
+  const ufs = useMemo(() => {
+    const set = new Set(todosLeads.map(l => l.uf).filter(Boolean));
+    return Array.from(set).sort();
+  }, [todosLeads]);
+
+  const municipios = useMemo(() => {
+    const set = new Set(
+      todosLeads
+        .filter(l => !filtros.uf || l.uf === filtros.uf)
+        .map(l => l.municipio)
+        .filter(Boolean)
+    );
+    return Array.from(set).sort();
+  }, [todosLeads, filtros.uf]);
 
   const pegarLead = async (leadId: number) => {
     if (!supabase) return;
@@ -334,43 +396,153 @@ export default function Dashboard() {
 
         <Tabs defaultValue="leads" className="w-full">
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="leads">Leads Disponíveis ({leads.length})</TabsTrigger>
+            <TabsTrigger value="leads">Leads Disponíveis ({leadsFiltrados.length})</TabsTrigger>
             <TabsTrigger value="meus">Meus Leads ({meusLeads.length})</TabsTrigger>
             {isAdmin && <TabsTrigger value="importar">Importar</TabsTrigger>}
           </TabsList>
 
-          {/* Leads Disponíveis */}
+          {/* Leads Disponíveis com Filtros */}
           <TabsContent value="leads" className="space-y-4">
+            {/* Filtros */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Filtros Avançados</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Busca por Nome */}
+                  <div className="space-y-2">
+                    <Label htmlFor="busca">Buscar por Nome</Label>
+                    <Input
+                      id="busca"
+                      placeholder="Ex: estética, salão..."
+                      value={filtros.busca}
+                      onChange={(e) => {
+                        setFiltros({ ...filtros, busca: e.target.value });
+                        setPagina(1);
+                      }}
+                    />
+                  </div>
+
+                  {/* Filtro UF */}
+                  <div className="space-y-2">
+                    <Label htmlFor="uf">Estado (UF)</Label>
+                    <select
+                      id="uf"
+                      value={filtros.uf}
+                      onChange={(e) => {
+                        setFiltros({ ...filtros, uf: e.target.value, municipio: '' });
+                        setPagina(1);
+                      }}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
+                    >
+                      <option value="">Todos os estados</option>
+                      {ufs.map(uf => (
+                        <option key={uf} value={uf}>{uf}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Filtro Município */}
+                  <div className="space-y-2">
+                    <Label htmlFor="municipio">Município</Label>
+                    <select
+                      id="municipio"
+                      value={filtros.municipio}
+                      onChange={(e) => {
+                        setFiltros({ ...filtros, municipio: e.target.value });
+                        setPagina(1);
+                      }}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
+                    >
+                      <option value="">Todos os municípios</option>
+                      {municipios.map(municipio => (
+                        <option key={municipio} value={municipio}>{municipio}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Filtro DDD */}
+                  <div className="space-y-2">
+                    <Label htmlFor="ddd">DDD (Telefone)</Label>
+                    <Input
+                      id="ddd"
+                      placeholder="Ex: 11, 21, 31..."
+                      value={filtros.ddd}
+                      onChange={(e) => {
+                        setFiltros({ ...filtros, ddd: e.target.value });
+                        setPagina(1);
+                      }}
+                      maxLength={2}
+                    />
+                  </div>
+                </div>
+
+                {/* Botão Limpar Filtros */}
+                {(filtros.busca || filtros.uf || filtros.ddd || filtros.municipio) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setFiltros({ busca: '', uf: '', ddd: '', municipio: '' });
+                      setPagina(1);
+                    }}
+                    className="mt-4"
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    Limpar Filtros
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Lista de Leads */}
             <div className="grid gap-4">
-              {leads.length === 0 ? (
+              {leadsExibidos.length === 0 ? (
                 <Card>
                   <CardContent className="pt-6 text-center text-slate-600">
-                    Nenhum lead disponível no momento
+                    {leadsFiltrados.length === 0 
+                      ? 'Nenhum lead encontrado com esses filtros'
+                      : 'Nenhum lead disponível no momento'
+                    }
                   </CardContent>
                 </Card>
               ) : (
-                leads.map(lead => (
-                  <Card key={lead.id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="pt-6">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-lg">{lead.razao_social}</h3>
-                          <div className="grid grid-cols-2 gap-2 mt-2 text-sm text-slate-600">
-                            <div>📞 {lead.telefone || 'N/A'}</div>
-                            <div>🏢 {lead.cnpj || 'N/A'}</div>
-                            <div>📍 {lead.municipio}, {lead.uf}</div>
+                <>
+                  {leadsExibidos.map(lead => (
+                    <Card key={lead.id} className="hover:shadow-md transition-shadow">
+                      <CardContent className="pt-6">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-lg">{lead.razao_social}</h3>
+                            <div className="grid grid-cols-2 gap-2 mt-2 text-sm text-slate-600">
+                              <div>📞 {lead.telefone || 'N/A'}</div>
+                              <div>🏢 {lead.cnpj || 'N/A'}</div>
+                              <div>📍 {lead.municipio}, {lead.uf}</div>
+                            </div>
                           </div>
+                          <Button 
+                            onClick={() => pegarLead(lead.id)}
+                            className="ml-4"
+                          >
+                            Pegar Lead
+                          </Button>
                         </div>
-                        <Button 
-                          onClick={() => pegarLead(lead.id)}
-                          className="ml-4"
-                        >
-                          Pegar Lead
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
+                      </CardContent>
+                    </Card>
+                  ))}
+
+                  {/* Botão Carregar Mais */}
+                  {temMais && (
+                    <Button
+                      onClick={() => setPagina(pagina + 1)}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      Carregar Mais ({leadsExibidos.length} de {leadsFiltrados.length})
+                    </Button>
+                  )}
+                </>
               )}
             </div>
           </TabsContent>
