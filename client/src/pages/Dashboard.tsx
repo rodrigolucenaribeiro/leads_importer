@@ -297,6 +297,21 @@ export default function Dashboard() {
     }
   };
 
+  const abrirWhatsAppEPegarLead = async (telefone: string, razaoSocial: string, municipio: string, leadId: number) => {
+    if (!telefone) return;
+    
+    // Primeiro pega o lead
+    await pegarLead(leadId);
+    
+    // Depois abre o WhatsApp
+    setTimeout(() => {
+      const numeroLimpo = telefone.replace(/\D/g, '');
+      const mensagem = gerarMensagemWhatsApp(razaoSocial, municipio, vendedor?.nome || 'Vendedor');
+      const url = `https://wa.me/55${numeroLimpo}?text=${encodeURIComponent(mensagem)}`;
+      window.open(url, '_blank');
+    }, 500);
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       setArquivo(e.target.files[0]);
@@ -599,20 +614,13 @@ export default function Dashboard() {
                           <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
                             {lead.telefone && (
                               <Button
-                                onClick={() => abrirWhatsApp(lead.telefone, lead.razao_social, lead.municipio)}
-                                variant="outline"
-                                className="flex-1 sm:flex-none text-green-600 border-green-600 hover:bg-green-50"
+                                onClick={() => abrirWhatsAppEPegarLead(lead.telefone, lead.razao_social, lead.municipio, lead.id)}
+                                className="flex-1 sm:flex-none bg-green-600 hover:bg-green-700 text-white"
                               >
                                 <MessageCircle className="w-4 h-4 mr-2" />
-                                WhatsApp
+                                Pegar & WhatsApp
                               </Button>
                             )}
-                            <Button 
-                              onClick={() => pegarLead(lead.id)}
-                              className="flex-1 sm:flex-none"
-                            >
-                              Pegar Lead
-                            </Button>
                           </div>
                         </div>
                       </CardContent>
