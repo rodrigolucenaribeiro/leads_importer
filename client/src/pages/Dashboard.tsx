@@ -219,10 +219,95 @@ export default function Dashboard() {
     setLocation('/login');
   };
 
-  const abrirWhatsApp = (telefone: string, razaoSocial: string) => {
+  const gerarMensagemWhatsApp = (razaoSocial: string, municipio: string, nomeVendedor: string) => {
+    // Saudações variadas
+    const saudacoes = [
+      'Oi',
+      'Olá',
+      'E aí',
+      'Tudo bem?',
+      'Bom dia',
+      'Boa tarde',
+      'Boa noite',
+      'Opa',
+      'Fala',
+      'Opa, tudo certo?'
+    ];
+
+    // Introduções variadas
+    const introducoes = [
+      `Sou ${nomeVendedor} da Vellozia`,
+      `Meu nome é ${nomeVendedor}, sou representante da Vellozia`,
+      `Aqui é ${nomeVendedor} da Vellozia`,
+      `${nomeVendedor} aqui, da Vellozia`,
+      `Sou da Vellozia, meu nome é ${nomeVendedor}`,
+      `Trabalho com a Vellozia, sou ${nomeVendedor}`
+    ];
+
+    // Aberturas variadas
+    const aberturas = [
+      `Vi que vocês trabalham com estética em ${municipio}`,
+      `Vocês são de ${municipio}, certo?`,
+      `Notei que vocês atuam em ${municipio}`,
+      `Vejo que vocês estão em ${municipio}`,
+      `Achei o contato de vocês em ${municipio}`
+    ];
+
+    // Propostas variadas
+    const propostas = [
+      'Gostaria de conversar sobre nossos produtos de qualidade premium',
+      'Tenho uma proposta interessante de produtos estéticos',
+      'Queria apresentar nossas soluções em bioestimuladores e toxinas',
+      'Temos produtos diferenciados que podem interessar vocês',
+      'Poderia ser útil conversar sobre nosso catálogo?',
+      'Vocês já conhecem a Vellozia? Temos ótimas soluções',
+      'Trabalho com produtos de excelente qualidade, gostaria de conversar',
+      'Tenho certeza que vocês vão gostar do que oferecemos'
+    ];
+
+    // Perguntas para engajar
+    const perguntas = [
+      'Qual é o principal produto que vocês mais utilizam?',
+      'Vocês já trabalham com toxinas e preenchedores?',
+      'Qual é o seu principal fornecedor atualmente?',
+      'Vocês estão abertos a conhecer novos fornecedores?',
+      'Qual é o seu maior desafio em relação aos produtos que usa?',
+      'Vocês já conhecem a Vellozia?'
+    ];
+
+    // Chamadas para ação variadas
+    const ctas = [
+      'Posso enviar nosso catálogo?',
+      'Quer que eu mande mais informações?',
+      'Podemos marcar uma conversa rápida?',
+      'Topa conversar um pouco?',
+      'Deixa eu te apresentar nossos produtos',
+      'Vou te mostrar o que temos de melhor',
+      'Quer conhecer nossas opções?'
+    ];
+
+    // Variações de estrutura
+    const estruturas = [
+      // Estrutura 1: Saudação + Introdução + Abertura + Proposta + CTA
+      `${saudacoes[Math.floor(Math.random() * saudacoes.length)]}! 👋\n\n${introducoes[Math.floor(Math.random() * introducoes.length)]}. ${aberturas[Math.floor(Math.random() * aberturas.length)]}.\n\n${propostas[Math.floor(Math.random() * propostas.length)]}!\n\n${ctas[Math.floor(Math.random() * ctas.length)]}`,
+      
+      // Estrutura 2: Saudação + Abertura + Proposta + Pergunta
+      `${saudacoes[Math.floor(Math.random() * saudacoes.length)]}! ${introducoes[Math.floor(Math.random() * introducoes.length)]}.\n\n${aberturas[Math.floor(Math.random() * aberturas.length)]}. ${propostas[Math.floor(Math.random() * propostas.length)]}.\n\n${perguntas[Math.floor(Math.random() * perguntas.length)]}`,
+      
+      // Estrutura 3: Saudação + Pergunta + Proposta
+      `${saudacoes[Math.floor(Math.random() * saudacoes.length)]}! ${perguntas[Math.floor(Math.random() * perguntas.length)]}\n\n${introducoes[Math.floor(Math.random() * introducoes.length)]}.\n\n${propostas[Math.floor(Math.random() * propostas.length)]}\n\n${ctas[Math.floor(Math.random() * ctas.length)]}`,
+      
+      // Estrutura 4: Consultiva
+      `${saudacoes[Math.floor(Math.random() * saudacoes.length)]}!\n\n${introducoes[Math.floor(Math.random() * introducoes.length)]}.\n\n${perguntas[Math.floor(Math.random() * perguntas.length)]}\n\nFico no aguardo! 😊`,
+    ];
+
+    return estruturas[Math.floor(Math.random() * estruturas.length)];
+  };
+
+  const abrirWhatsApp = (telefone: string, razaoSocial: string, municipio: string) => {
     if (!telefone) return;
     const numeroLimpo = telefone.replace(/\D/g, '');
-    const mensagem = `Ola! Sou vendedor e gostaria de conversar com ${razaoSocial}`;
+    const mensagem = gerarMensagemWhatsApp(razaoSocial, municipio, vendedor?.nome || 'Vendedor');
     const url = `https://wa.me/55${numeroLimpo}?text=${encodeURIComponent(mensagem)}`;
     window.open(url, '_blank');
   };
@@ -531,7 +616,7 @@ export default function Dashboard() {
                           <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
                             {lead.telefone && (
                               <Button
-                                onClick={() => abrirWhatsApp(lead.telefone, lead.razao_social)}
+                                onClick={() => abrirWhatsApp(lead.telefone, lead.razao_social, lead.municipio)}
                                 variant="outline"
                                 className="flex-1 sm:flex-none text-green-600 border-green-600 hover:bg-green-50"
                               >
