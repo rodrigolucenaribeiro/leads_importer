@@ -389,8 +389,12 @@ export default function Dashboard() {
       const leadsParaInserir: any[] = [];
 
       for (const row of dados as any[]) {
-        const cnpj = String((row as any).CNPJ || '').replace(/\D/g, '');
-        const telefone = String((row as any).Telefone || '').replace(/\D/g, '');
+        const cnpj = String((row as any).CNPJ || '').replace(/\D/g, '').slice(0, 14);
+        let telefone = String((row as any).Telefone || '').replace(/\D/g, '');
+        // Se tiver mais de 11 dígitos, remover os primeiros (provavelmente +55)
+        if (telefone.length > 11) {
+          telefone = telefone.slice(-11);
+        }
         const razaoSocial = String((row as any)['Razão Social'] || '').trim();
         const municipio = String((row as any).Município || '').trim().toUpperCase();
         const uf = String((row as any).UF || '').trim().toUpperCase();
