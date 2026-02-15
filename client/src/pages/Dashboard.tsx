@@ -133,8 +133,7 @@ export default function Dashboard() {
         .from('leads')
         .select('*')
         .is('claimed_by', null)
-        .order('id', { ascending: false })
-        .range((pagina - 1) * 50, pagina * 50 - 1);
+        .order('id', { ascending: false });
 
       if (filtros.busca) {
         query = query.ilike('razao_social', `%${filtros.busca}%`);
@@ -477,9 +476,7 @@ export default function Dashboard() {
     }
   };
 
-  const leadsExibidos = leads.slice(0, 50);
   const leadsFiltrados = leads;
-  const temMais = leadsFiltrados.length > leadsExibidos.length;
 
   if (!vendedor) {
     return <div className="flex items-center justify-center min-h-screen">Carregando...</div>;
@@ -625,7 +622,7 @@ export default function Dashboard() {
                 </Card>
               ) : (
                 <>
-                  {leadsExibidos.map(lead => (
+                  {leads.map(lead => (
                     <Card key={lead.id} className="hover:shadow-md transition-shadow">
                       <CardContent className="pt-6">
                         <div className="flex flex-col md:flex-row justify-between items-start gap-4">
@@ -652,16 +649,7 @@ export default function Dashboard() {
                     </Card>
                   ))}
 
-                  {/* Botão Carregar Mais */}
-                  {temMais && (
-                    <Button
-                      onClick={() => setPagina(pagina + 1)}
-                      variant="outline"
-                      className="w-full"
-                    >
-                      Carregar Mais ({leadsExibidos.length} de {leadsFiltrados.length})
-                    </Button>
-                  )}
+
                 </>
               )}
             </div>
