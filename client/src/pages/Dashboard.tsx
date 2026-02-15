@@ -390,7 +390,9 @@ export default function Dashboard() {
 
       for (const row of dados as any[]) {
         const cnpj = String((row as any).CNPJ || '').replace(/\D/g, '').slice(0, 14);
-        let telefone = String((row as any).Telefone || '').replace(/\D/g, '');
+        // Pegar apenas o primeiro telefone se houver múltiplos separados por /
+        let telefoneBruto = String((row as any).Telefone || '').split('/')[0].trim();
+        let telefone = telefoneBruto.replace(/\D/g, '');
         // Se tiver mais de 11 dígitos, remover os primeiros (provavelmente +55)
         if (telefone.length > 11) {
           telefone = telefone.slice(-11);
