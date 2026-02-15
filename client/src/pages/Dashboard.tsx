@@ -77,6 +77,7 @@ export default function Dashboard() {
   const [historico, setHistorico] = useState<LeadHistory[]>([]);
   const [novaNota, setNovaNota] = useState('');
   const [proximaAcao, setProximaAcao] = useState('');
+  const [whatsappChoice, setWhatsappChoice] = useState<{show: boolean; telefone: string; razaoSocial: string; municipio: string; leadId: number} | null>(null);
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [mensagem, setMensagem] = useState('');
