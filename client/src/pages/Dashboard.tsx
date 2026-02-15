@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LogOut, Upload, Loader2, Download, X } from 'lucide-react';
+import { LogOut, Upload, Loader2, Download, X, MessageCircle, Phone } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import { useLocation } from 'wouter';
 import * as XLSX from 'xlsx';
@@ -217,6 +217,14 @@ export default function Dashboard() {
     if (!supabase) return;
     await supabase.auth.signOut();
     setLocation('/login');
+  };
+
+  const abrirWhatsApp = (telefone: string, razaoSocial: string) => {
+    if (!telefone) return;
+    const numeroLimpo = telefone.replace(/\D/g, '');
+    const mensagem = `Ola! Sou vendedor e gostaria de conversar com ${razaoSocial}`;
+    const url = `https://wa.me/55${numeroLimpo}?text=${encodeURIComponent(mensagem)}`;
+    window.open(url, '_blank');
   };
 
   const normalizarTelefone = (telefone: string): string => {
@@ -512,21 +520,32 @@ export default function Dashboard() {
                   {leadsExibidos.map(lead => (
                     <Card key={lead.id} className="hover:shadow-md transition-shadow">
                       <CardContent className="pt-6">
-                        <div className="flex justify-between items-start">
+                        <div className="flex flex-col md:flex-row justify-between items-start gap-4">
                           <div className="flex-1">
                             <h3 className="font-semibold text-lg">{lead.razao_social}</h3>
                             <div className="grid grid-cols-2 gap-2 mt-2 text-sm text-slate-600">
-                              <div>📞 {lead.telefone || 'N/A'}</div>
                               <div>🏢 {lead.cnpj || 'N/A'}</div>
                               <div>📍 {lead.municipio}, {lead.uf}</div>
                             </div>
                           </div>
-                          <Button 
-                            onClick={() => pegarLead(lead.id)}
-                            className="ml-4"
-                          >
-                            Pegar Lead
-                          </Button>
+                          <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+                            {lead.telefone && (
+                              <Button
+                                onClick={() => abrirWhatsApp(lead.telefone, lead.razao_social)}
+                                variant="outline"
+                                className="flex-1 sm:flex-none text-green-600 border-green-600 hover:bg-green-50"
+                              >
+                                <MessageCircle className="w-4 h-4 mr-2" />
+                                WhatsApp
+                              </Button>
+                            )}
+                            <Button 
+                              onClick={() => pegarLead(lead.id)}
+                              className="flex-1 sm:flex-none"
+                            >
+                              Pegar Lead
+                            </Button>
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
