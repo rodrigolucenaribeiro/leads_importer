@@ -207,7 +207,7 @@ export default function Dashboard() {
     setLocation('/login');
   };
 
-  const gerarMensagemWhatsApp = (razaoSocial: string, municipio: string, nomeVendedor: string) => {
+  const gerarMensagemWhatsApp = (razaoSocial: string, municipio: string) => {
     // Saudações profissionais
     const saudacoes = [
       'Olá',
@@ -216,12 +216,12 @@ export default function Dashboard() {
       'Boa noite'
     ];
 
-    // Introduções profissionais
+    // Introduções com Vellozia Produtos Hospitalares
     const introducoes = [
-      `Sou ${nomeVendedor}, representante da Vellozia`,
-      `Meu nome é ${nomeVendedor}, trabalho com a Vellozia`,
-      `Aqui é ${nomeVendedor} da Vellozia`,
-      `${nomeVendedor} aqui, representante da Vellozia`
+      'Sou da Vellozia Produtos Hospitalares',
+      'Aqui é Vellozia Produtos Hospitalares',
+      'Trabalho com a Vellozia Produtos Hospitalares',
+      'Vellozia Produtos Hospitalares aqui'
     ];
 
     // Contextualizações
@@ -234,7 +234,7 @@ export default function Dashboard() {
 
     // Propostas de valor (foco em benefícios concretos)
     const propostas = [
-      'Trabalho com fornecedores de toxinas e preenchedores com melhor custo-benefício do mercado',
+      'Somos distribuidoras de produtos para harmonização facial e corporal com 9 filiais pelo Brasil',
       'Temos acesso a produtos com certificação internacional e prazos de entrega otimizados',
       'Oferecemos soluções em bioestimuladores e preenchedores com excelente relação qualidade-preço',
       'Posso apresentar alternativas de fornecimento que reduzem custos operacionais',
@@ -262,19 +262,19 @@ export default function Dashboard() {
       'Quando você teria disponibilidade para uma conversa rápida?'
     ];
 
-    // Variações de estrutura (profissional)
+    // Variações de estrutura (profissional) - SEMPRE com pergunta no final
     const estruturas = [
       // Estrutura 1: Apresentação + Contexto + Proposta + Pergunta
-      `${saudacoes[Math.floor(Math.random() * saudacoes.length)]},\n\n${introducoes[Math.floor(Math.random() * introducoes.length)]}.\n\n${contextos[Math.floor(Math.random() * contextos.length)]}.\n\n${propostas[Math.floor(Math.random() * propostas.length)]}.\n\n${perguntas[Math.floor(Math.random() * perguntas.length)]}?`,
+      `${saudacoes[Math.floor(Math.random() * saudacoes.length)]},\n\n${introducoes[Math.floor(Math.random() * introducoes.length)]}.\n\n${contextos[Math.floor(Math.random() * contextos.length)]}.\n\n${propostas[Math.floor(Math.random() * propostas.length)]}.\n\n${perguntas[Math.floor(Math.random() * perguntas.length)]}?\n\nInstagram: @velloziaoficial`,
       
       // Estrutura 2: Apresentação + Pergunta + Proposta
-      `${saudacoes[Math.floor(Math.random() * saudacoes.length)]},\n\n${introducoes[Math.floor(Math.random() * introducoes.length)]}.\n\n${perguntas[Math.floor(Math.random() * perguntas.length)]}?\n\n${propostas[Math.floor(Math.random() * propostas.length)]}.\n\n${ctas[Math.floor(Math.random() * ctas.length)]}`,
+      `${saudacoes[Math.floor(Math.random() * saudacoes.length)]},\n\n${introducoes[Math.floor(Math.random() * introducoes.length)]}.\n\n${perguntas[Math.floor(Math.random() * perguntas.length)]}?\n\n${propostas[Math.floor(Math.random() * propostas.length)]}.\n\nInstagram: @velloziaoficial`,
       
       // Estrutura 3: Consultiva direta
-      `${saudacoes[Math.floor(Math.random() * saudacoes.length)]},\n\n${introducoes[Math.floor(Math.random() * introducoes.length)]}.\n\n${contextos[Math.floor(Math.random() * contextos.length)]}.\n\n${perguntas[Math.floor(Math.random() * perguntas.length)]}?`,
+      `${saudacoes[Math.floor(Math.random() * saudacoes.length)]},\n\n${introducoes[Math.floor(Math.random() * introducoes.length)]}.\n\n${contextos[Math.floor(Math.random() * contextos.length)]}.\n\n${perguntas[Math.floor(Math.random() * perguntas.length)]}?\n\nInstagram: @velloziaoficial`,
       
-      // Estrutura 4: Proposta + Contexto + CTA
-      `${saudacoes[Math.floor(Math.random() * saudacoes.length)]},\n\n${propostas[Math.floor(Math.random() * propostas.length)]}.\n\n${introducoes[Math.floor(Math.random() * introducoes.length)]}.\n\n${ctas[Math.floor(Math.random() * ctas.length)]}`,
+      // Estrutura 4: Proposta + Contexto + Pergunta
+      `${saudacoes[Math.floor(Math.random() * saudacoes.length)]},\n\n${propostas[Math.floor(Math.random() * propostas.length)]}.\n\n${introducoes[Math.floor(Math.random() * introducoes.length)]}.\n\n${perguntas[Math.floor(Math.random() * perguntas.length)]}?\n\nInstagram: @velloziaoficial`,
     ];
 
     return estruturas[Math.floor(Math.random() * estruturas.length)];
@@ -283,7 +283,7 @@ export default function Dashboard() {
   const abrirWhatsApp = (telefone: string, razaoSocial: string, municipio: string) => {
     if (!telefone) return;
     const numeroLimpo = telefone.replace(/\D/g, '');
-    const mensagem = gerarMensagemWhatsApp(razaoSocial, municipio, vendedor?.nome || 'Vendedor');
+    const mensagem = gerarMensagemWhatsApp(razaoSocial, municipio);
     const url = `https://wa.me/55${numeroLimpo}?text=${encodeURIComponent(mensagem)}`;
     window.open(url, '_blank');
   };
@@ -328,24 +328,22 @@ export default function Dashboard() {
     // Primeiro pega o lead
     await pegarLead(leadId);
     
-    // Depois abre o WhatsApp
-    setTimeout(() => {
-      const numeroLimpo = telefone.replace(/\D/g, '');
-      const mensagem = gerarMensagemWhatsApp(razaoSocial, municipio, vendedor?.nome || 'Vendedor');
-      
-      // Detectar se é mobile
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      
-      if (isMobile) {
-        // Mobile: usar protocolo whatsapp:// para abrir app
-        const url = `whatsapp://send?phone=55${numeroLimpo}&text=${encodeURIComponent(mensagem)}`;
-        window.location.href = url;
-      } else {
-        // Desktop: abrir WhatsApp Web
-        const url = `https://web.whatsapp.com/send?phone=55${numeroLimpo}&text=${encodeURIComponent(mensagem)}`;
-        window.open(url, '_blank');
-      }
-    }, 500);
+    // Depois abre o WhatsApp imediatamente (sem delay)
+    const numeroLimpo = telefone.replace(/\D/g, '');
+    const mensagem = gerarMensagemWhatsApp(razaoSocial, municipio);
+    
+    // Detectar se é mobile
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+      // Mobile: usar protocolo whatsapp:// para abrir app
+      const url = `whatsapp://send?phone=55${numeroLimpo}&text=${encodeURIComponent(mensagem)}`;
+      window.location.href = url;
+    } else {
+      // Desktop: abrir WhatsApp Web
+      const url = `https://web.whatsapp.com/send?phone=55${numeroLimpo}&text=${encodeURIComponent(mensagem)}`;
+      window.open(url, '_blank');
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
