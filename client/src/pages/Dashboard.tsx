@@ -375,82 +375,78 @@ export default function Dashboard() {
       let duplicadosIgnorados = 0;
       let duplicadosAtualizados = 0;
       let erros: any[] = [];
+      const BATCH_SIZE = 100;
 
-      for (const row of dados) {
-        const cnpj = String(row.CNPJ || '').replace(/\D/g, '');
-        const telefone = String(row.Telefone || '').replace(/\D/g, '');
-        const razaoSocial = String(row['Razão Social'] || '').trim();
-        const municipio = String(row.Município || '').trim().toUpperCase();
-        const uf = String(row.UF || '').trim().toUpperCase();
+      // Buscar TODOS os leads existentes uma vez (não 19.400 vezes!)
+      const { data: leadsExistentes } = await supabase
+        .from('leads')
+        .select('cnpj, telefone');
+
+      const cnpjsExistentes = new Set((leadsExistentes || []).map(l => l.cnpj).filter(Boolean));
+      const telefonesExistentes = new Set((leadsExistentes || []).map(l => l.telefone).filter(Boolean));
+
+      // Preparar lotes para inserção
+      const leadsParaInserir: any[] = [];
+
+      for (const row of dados as any[]) {
+        const cnpj = String((row as any).CNPJ || '').replace(/\D/g, '');
+        const telefone = String((row as any).Telefone || '').replace(/\D/g, '');
+        const razaoSocial = String((row as any)['Razão Social'] || '').trim();
+        const municipio = String((row as any).Município || '').trim().toUpperCase();
+        const uf = String((row as any).UF || '').trim().toUpperCase();
 
         if (!telefone) {
-          erros.push({ linha: row, motivo: 'Telefone vazio' });
+          erros.push({ linha: (row as any), motivo: 'Telefone vazio' });
           continue;
         }
 
-        try {
-          // Verificar duplicatas
-          let duplicado = false;
+        // Verificar duplicatas em memória
+        let duplicado = false;
 
-          if (cnpj) {
-            const { data: existeCnpj } = await supabase
-              .from('leads')
-              .select('id')
-              .eq('cnpj', cnpj)
-              .limit(1);
+        if (cnpj && cnpjsExistentes.has(cnpj)) {
+          duplicado = true;
+          duplicadosIgnorados++;
+        } else if (telefonesExistentes.has(telefone)) {
+          duplicado = true;
+          duplicadosIgnorados++;
+        }
 
-            if (existeCnpj && existeCnpj.length > 0) {
-              duplicado = true;
-              duplicadosIgnorados++;
-              continue;
-            }
-          }
+        if (!duplicado) {
+          leadsParaInserir.push({
+            cnpj: cnpj || null,
+            telefone,
+            razao_social: razaoSocial,
+            nome_fantasia: String((row as any)['Nome Fantasia'] || '').trim() || null,
+            email: String((row as any).Email || '').trim() || null,
+            logradouro: String((row as any).Logradouro || '').trim() || null,
+            numero: String((row as any).Número || '').trim() || null,
+            bairro: String((row as any).Bairro || '').trim() || null,
+            cep: String((row as any).CEP || '').replace(/\D/g, '') || null,
+            municipio,
+            uf,
+            data_abertura: String((row as any)['Data Abertura'] || '').trim() || null,
+            natureza_juridica: String((row as any)['Natureza Jurídica'] || '').trim() || null,
+            situacao: String((row as any).Situação || '').trim() || null,
+            atividade_principal: String((row as any)['Atividade Principal'] || '').trim() || null,
+            capital_social: String((row as any)['Capital Social'] || '').trim() || null,
+            tipo: String((row as any).Tipo || '').trim() || null,
+            status: 'novo'
+          });
+        }
+      }
 
-          if (!duplicado && telefone) {
-            const { data: existeTelefone } = await supabase
-              .from('leads')
-              .select('id')
-              .eq('telefone', telefone)
-              .limit(1);
+      // Inserir em lotes de 100
+      for (let i = 0; i < leadsParaInserir.length; i += BATCH_SIZE) {
+        const batch = leadsParaInserir.slice(i, i + BATCH_SIZE);
+        const { error: insertError } = await supabase
+          .from('leads')
+          .insert(batch);
 
-            if (existeTelefone && existeTelefone.length > 0) {
-              duplicado = true;
-              duplicadosIgnorados++;
-              continue;
-            }
-          }
-
-          if (!duplicado) {
-            const { error } = await supabase
-              .from('leads')
-              .insert({
-                cnpj: cnpj || null,
-                telefone,
-                razao_social: razaoSocial,
-                nome_fantasia: String(row['Nome Fantasia'] || '').trim() || null,
-                email: String(row.Email || '').trim() || null,
-                logradouro: String(row.Logradouro || '').trim() || null,
-                numero: String(row.Número || '').trim() || null,
-                bairro: String(row.Bairro || '').trim() || null,
-                cep: String(row.CEP || '').replace(/\D/g, '') || null,
-                municipio,
-                uf,
-                data_abertura: String(row['Data Abertura'] || '').trim() || null,
-                natureza_juridica: String(row['Natureza Jurídica'] || '').trim() || null,
-                situacao: String(row.Situação || '').trim() || null,
-                atividade_principal: String(row['Atividade Principal'] || '').trim() || null,
-                capital_social: String(row['Capital Social'] || '').trim() || null,
-                tipo: String(row.Tipo || '').trim() || null,
-                status: 'novo'
-              });
-
-            if (!error) {
-              novosInseridos++;
-            }
-          }
-        } catch (error) {
-          console.error('Erro ao processar linha:', error);
-          erros.push({ linha: row, motivo: 'Erro ao processar' });
+        if (insertError) {
+          console.error('Erro ao inserir lote:', insertError);
+          erros.push({ motivo: `Erro ao inserir lote ${Math.floor(i / BATCH_SIZE) + 1}: ${insertError.message}` });
+        } else {
+          novosInseridos += batch.length;
         }
       }
 
