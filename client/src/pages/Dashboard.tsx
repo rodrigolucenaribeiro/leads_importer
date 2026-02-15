@@ -331,8 +331,19 @@ export default function Dashboard() {
     setTimeout(() => {
       const numeroLimpo = telefone.replace(/\D/g, '');
       const mensagem = gerarMensagemWhatsApp(razaoSocial, municipio, vendedor?.nome || 'Vendedor');
-      const url = `https://wa.me/55${numeroLimpo}?text=${encodeURIComponent(mensagem)}`;
-      window.open(url, '_blank');
+      
+      // Detectar se é mobile
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
+      if (isMobile) {
+        // Mobile: usar protocolo whatsapp:// para abrir app
+        const url = `whatsapp://send?phone=55${numeroLimpo}&text=${encodeURIComponent(mensagem)}`;
+        window.location.href = url;
+      } else {
+        // Desktop: abrir WhatsApp Web
+        const url = `https://web.whatsapp.com/send?phone=55${numeroLimpo}&text=${encodeURIComponent(mensagem)}`;
+        window.open(url, '_blank');
+      }
     }, 500);
   };
 
