@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LogOut, Upload, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { LogOut, Upload, Loader2, CheckCircle2, AlertCircle, Download } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import { useLocation } from 'wouter';
 import * as XLSX from 'xlsx';
@@ -32,6 +32,16 @@ interface Vendedor {
   id: string;
   nome: string;
   email: string;
+  is_admin?: boolean;
+}
+
+interface RelatorioImportacao {
+  total: number;
+  novos: number;
+  atualizados: number;
+  duplicados: number;
+  erros: number;
+  detalhes: string[];
 }
 
 export default function Dashboard() {
@@ -43,6 +53,8 @@ export default function Dashboard() {
   const [processando, setProcessando] = useState(false);
   const [mensagem, setMensagem] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
+  const [arquivoSelecionado, setArquivoSelecionado] = useState<File | null>(null);
+  const [relatorio, setRelatorio] = useState<RelatorioImportacao | null>(null);
 
   useEffect(() => {
     carregarDados();
@@ -52,7 +64,6 @@ export default function Dashboard() {
     if (!supabase) return;
 
     try {
-      // Verificar autenticação
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError || !user) {
         setLocation('/login');
@@ -67,29 +78,33 @@ export default function Dashboard() {
         .single();
 
       if (vendedorError) {
-        // Se não existe, criar
         const { data: newVendedor } = await supabase
           .from('vendedores')
           .insert({
             id: user.id,
             nome: user.email?.split('@')[0] || 'Vendedor',
             email: user.email,
+            is_admin: false,
           })
           .select()
           .single();
         
-        if (newVendedor) setVendedor(newVendedor);
+        if (newVendedor) {
+          setVendedor(newVendedor);
+          setIsAdmin(false);
+        }
       } else {
         setVendedor(vendedorData);
         setIsAdmin(vendedorData.is_admin || false);
       }
 
-      // Carregar leads disponíveis (não pegados)
+      // Carregar leads disponíveis
       const { data: leadsData } = await supabase
         .from('leads')
         .select('*')
         .is('claimed_by', null)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(100);
 
       setLeads(leadsData || []);
 
@@ -128,7 +143,6 @@ export default function Dashboard() {
 
       if (error) throw error;
 
-      // Recarregar dados
       await carregarDados();
       setMensagem('✓ Lead pegado com sucesso!');
       setTimeout(() => setMensagem(''), 3000);
@@ -143,27 +157,137 @@ export default function Dashboard() {
     setLocation('/login');
   };
 
+  const normalizarTelefone = (telefone: string): string => {
+    if (!telefone) return '';
+    const apenasNumeros = telefone.replace(/\D/g, '');
+    return apenasNumeros.slice(-11) || apenasNumeros;
+  };
+
+  const normalizarCNPJ = (cnpj: string): string => {
+    if (!cnpj) return '';
+    return cnpj.replace(/\D/g, '').slice(0, 14);
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !supabase) return;
+
+    setArquivoSelecionado(file);
+    setMensagem(`✓ Arquivo com ${file.name} carregado. Clique em "Importar Agora" para processar.`);
+  };
+
+  const importarArquivo = async () => {
+    if (!arquivoSelecionado || !supabase) return;
 
     setProcessando(true);
     setMensagem('');
 
     try {
-      const arrayBuffer = await file.arrayBuffer();
+      const arrayBuffer = await arquivoSelecionado.arrayBuffer();
       const workbook = XLSX.read(arrayBuffer, { type: 'array' });
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const data = XLSX.utils.sheet_to_json(worksheet);
+      const dados = XLSX.utils.sheet_to_json(worksheet);
 
-      // Aqui você pode processar e importar os leads
-      // Por enquanto, apenas mostramos uma mensagem
-      setMensagem(`✓ Arquivo com ${data.length} linhas pronto para importar`);
-      
-      // Recarregar leads após importação
+      const relatorio: RelatorioImportacao = {
+        total: dados.length,
+        novos: 0,
+        atualizados: 0,
+        duplicados: 0,
+        erros: 0,
+        detalhes: []
+      };
+
+      const leadsParaInserir: any[] = [];
+      const cnpjsExistentes = new Set<string>();
+      const telefonesExistentes = new Set<string>();
+
+      // Buscar CNPJs e telefones existentes
+      const { data: leadsExistentes } = await supabase
+        .from('leads')
+        .select('cnpj, telefone');
+
+      if (leadsExistentes) {
+        leadsExistentes.forEach(lead => {
+          if (lead.cnpj) cnpjsExistentes.add(lead.cnpj);
+          if (lead.telefone) telefonesExistentes.add(lead.telefone);
+        });
+      }
+
+      // Processar cada linha
+      for (const row of dados as any[]) {
+        try {
+          const razaoSocial = (row as any)['Razão Social'] || (row as any)['razao_social'] || '';
+          const cnpj = normalizarCNPJ((row as any)['CNPJ'] || (row as any)['cnpj'] || '');
+          const telefone = normalizarTelefone((row as any)['Telefone'] || (row as any)['telefone'] || '');
+
+          if (!razaoSocial) {
+            relatorio.erros++;
+            relatorio.detalhes.push('Razão social vazia');
+            continue;
+          }
+
+          // Verificar duplicação
+          if (cnpj && cnpjsExistentes.has(cnpj)) {
+            relatorio.duplicados++;
+            relatorio.detalhes.push(`Duplicado: CNPJ ${cnpj}`);
+            continue;
+          }
+
+          if (telefone && telefonesExistentes.has(telefone)) {
+            relatorio.duplicados++;
+            relatorio.detalhes.push(`Duplicado: Telefone ${telefone}`);
+            continue;
+          }
+
+          // Preparar lead para inserção
+          leadsParaInserir.push({
+            cnpj: cnpj || null,
+            telefone: telefone || null,
+            razao_social: razaoSocial,
+            nome_fantasia: (row as any)['Nome Fantasia'] || (row as any)['nome_fantasia'] || null,
+            email: (row as any)['Email'] || (row as any)['email'] || null,
+            logradouro: (row as any)['Logradouro'] || (row as any)['logradouro'] || null,
+            numero: (row as any)['Número'] || (row as any)['numero'] || null,
+            bairro: (row as any)['Bairro'] || (row as any)['bairro'] || null,
+            cep: (row as any)['CEP'] || (row as any)['cep'] || null,
+            municipio: (row as any)['Município'] || (row as any)['municipio'] || null,
+            uf: ((row as any)['UF'] || (row as any)['uf'] || '').toUpperCase(),
+            data_abertura: (row as any)['Data Abertura'] || (row as any)['data_abertura'] || null,
+            natureza_juridica: (row as any)['Natureza Jurídica'] || (row as any)['natureza_juridica'] || null,
+            situacao: (row as any)['Situação'] || (row as any)['situacao'] || null,
+            atividade_principal: (row as any)['Atividade Principal'] || (row as any)['atividade_principal'] || null,
+            capital_social: (row as any)['Capital Social'] || (row as any)['capital_social'] || null,
+            tipo: (row as any)['Tipo'] || (row as any)['tipo'] || null,
+            status: 'novo'
+          });
+
+          if (cnpj) cnpjsExistentes.add(cnpj);
+          if (telefone) telefonesExistentes.add(telefone);
+          relatorio.novos++;
+        } catch (err) {
+          relatorio.erros++;
+          relatorio.detalhes.push(`Erro ao processar linha: ${err}`);
+        }
+      }
+
+      // Inserir leads em lotes
+      if (leadsParaInserir.length > 0) {
+        const { error: insertError } = await supabase
+          .from('leads')
+          .insert(leadsParaInserir);
+
+        if (insertError) throw insertError;
+      }
+
+      setRelatorio(relatorio);
+      setMensagem(`✓ Importação concluída! ${relatorio.novos} novos leads adicionados.`);
+      setArquivoSelecionado(null);
+
+      // Recarregar dados
       setTimeout(() => carregarDados(), 1000);
     } catch (err) {
-      setMensagem('✗ Erro ao processar arquivo');
+      console.error('Erro ao importar:', err);
+      setMensagem(`✗ Erro ao importar arquivo: ${err}`);
     } finally {
       setProcessando(false);
     }
@@ -226,14 +350,14 @@ export default function Dashboard() {
                 </Card>
               ) : (
                 leads.map(lead => (
-                  <Card key={lead.id}>
+                  <Card key={lead.id} className="hover:shadow-md transition-shadow">
                     <CardContent className="pt-6">
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
                           <h3 className="font-semibold text-lg">{lead.razao_social}</h3>
                           <div className="grid grid-cols-2 gap-2 mt-2 text-sm text-slate-600">
-                            <div>📞 {lead.telefone}</div>
-                            <div>🏢 {lead.cnpj}</div>
+                            <div>📞 {lead.telefone || 'N/A'}</div>
+                            <div>🏢 {lead.cnpj || 'N/A'}</div>
                             <div>📍 {lead.municipio}, {lead.uf}</div>
                           </div>
                         </div>
@@ -262,26 +386,24 @@ export default function Dashboard() {
                 </Card>
               ) : (
                 meusLeads.map(lead => (
-                  <Card key={lead.id}>
+                  <Card key={lead.id} className="hover:shadow-md transition-shadow">
                     <CardContent className="pt-6">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-lg">{lead.razao_social}</h3>
-                          <div className="grid grid-cols-2 gap-2 mt-2 text-sm text-slate-600">
-                            <div>📞 {lead.telefone}</div>
-                            <div>🏢 {lead.cnpj}</div>
-                            <div>📍 {lead.municipio}, {lead.uf}</div>
-                            <div>📅 {new Date(lead.claimed_at || '').toLocaleDateString('pt-BR')}</div>
-                          </div>
-                          <div className="mt-2">
-                            <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                              lead.status === 'novo' ? 'bg-blue-100 text-blue-700' :
-                              lead.status === 'contatado' ? 'bg-yellow-100 text-yellow-700' :
-                              'bg-green-100 text-green-700'
-                            }`}>
-                              {lead.status}
-                            </span>
-                          </div>
+                      <div>
+                        <h3 className="font-semibold text-lg">{lead.razao_social}</h3>
+                        <div className="grid grid-cols-2 gap-2 mt-2 text-sm text-slate-600">
+                          <div>📞 {lead.telefone || 'N/A'}</div>
+                          <div>🏢 {lead.cnpj || 'N/A'}</div>
+                          <div>📍 {lead.municipio}, {lead.uf}</div>
+                          <div>📅 {new Date(lead.claimed_at || '').toLocaleDateString('pt-BR')}</div>
+                        </div>
+                        <div className="mt-2">
+                          <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
+                            lead.status === 'novo' ? 'bg-blue-100 text-blue-700' :
+                            lead.status === 'contatado' ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-green-100 text-green-700'
+                          }`}>
+                            {lead.status}
+                          </span>
                         </div>
                       </div>
                     </CardContent>
@@ -306,7 +428,7 @@ export default function Dashboard() {
                     <div className="border-2 border-dashed rounded-lg p-8 text-center">
                       <Upload className="w-8 h-8 mx-auto mb-2 text-slate-400" />
                       <Label htmlFor="file" className="cursor-pointer">
-                        <span className="text-blue-600 hover:underline">Clique para selecionar</span>
+                        <span className="text-blue-600 hover:underline font-medium">Clique para selecionar</span>
                         {' '}ou arraste um arquivo
                       </Label>
                       <Input
@@ -318,13 +440,46 @@ export default function Dashboard() {
                         className="hidden"
                       />
                       <p className="text-sm text-slate-500 mt-2">Apenas arquivos .xlsx</p>
+                      {arquivoSelecionado && (
+                        <p className="text-sm text-green-600 mt-2 font-medium">
+                          ✓ {arquivoSelecionado.name}
+                        </p>
+                      )}
                     </div>
 
-                    {processando && (
-                      <div className="flex items-center gap-2 text-slate-600">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Processando arquivo...
-                      </div>
+                    {arquivoSelecionado && (
+                      <Button 
+                        onClick={importarArquivo}
+                        disabled={processando}
+                        className="w-full"
+                        size="lg"
+                      >
+                        {processando ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Importando...
+                          </>
+                        ) : (
+                          <>
+                            <Download className="w-4 h-4 mr-2" />
+                            Importar Agora
+                          </>
+                        )}
+                      </Button>
+                    )}
+
+                    {relatorio && (
+                      <Card className="bg-slate-50">
+                        <CardHeader>
+                          <CardTitle className="text-lg">Relatório de Importação</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2 text-sm">
+                          <div>Total de linhas: <strong>{relatorio.total}</strong></div>
+                          <div className="text-green-600">Novos inseridos: <strong>{relatorio.novos}</strong></div>
+                          <div className="text-yellow-600">Duplicados: <strong>{relatorio.duplicados}</strong></div>
+                          <div className="text-red-600">Erros: <strong>{relatorio.erros}</strong></div>
+                        </CardContent>
+                      </Card>
                     )}
                   </div>
                 </CardContent>
