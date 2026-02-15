@@ -47,11 +47,36 @@ interface Vendedor {
   is_admin: boolean;
 }
 
+interface LeadNote {
+  id: number;
+  lead_id: number;
+  vendedor_id: string;
+  nota: string;
+  created_at: string;
+}
+
+interface LeadHistory {
+  id: number;
+  lead_id: number;
+  vendedor_id: string;
+  status_anterior: string;
+  status_novo: string;
+  proxima_acao: string;
+  created_at: string;
+}
+
+
+
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const [vendedor, setVendedor] = useState<Vendedor | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [meuLeads, setMeuLeads] = useState<Lead[]>([]);
+  const [leadSelecionado, setLeadSelecionado] = useState<Lead | null>(null);
+  const [notas, setNotas] = useState<LeadNote[]>([]);
+  const [historico, setHistorico] = useState<LeadHistory[]>([]);
+  const [novaNota, setNovaNota] = useState('');
+  const [proximaAcao, setProximaAcao] = useState('');
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [mensagem, setMensagem] = useState('');
@@ -642,36 +667,150 @@ export default function Dashboard() {
             </div>
           </TabsContent>
 
-          {/* Meus Leads */}
+          {/* Meus Leads com CRM */}
           <TabsContent value="meus" className="space-y-4">
-            <div className="grid gap-4">
-              {meuLeads.length === 0 ? (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Lista de Leads */}
+              <div className="lg:col-span-1">
                 <Card>
-                  <CardContent className="pt-6 text-center text-slate-600">
-                    Você ainda não capturou nenhum lead
+                  <CardHeader>
+                    <CardTitle>Meus Leads ({meuLeads.length})</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 max-h-96 overflow-y-auto">
+                    {meuLeads.length === 0 ? (
+                      <p className="text-sm text-slate-600">Nenhum lead capturado</p>
+                    ) : (
+                      meuLeads.map(lead => (
+                        <button
+                          key={lead.id}
+                          onClick={() => setLeadSelecionado(lead)}
+                          className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                            leadSelecionado?.id === lead.id
+                              ? 'bg-blue-50 border-blue-300'
+                              : 'bg-white border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          <p className="font-semibold text-sm">{lead.razao_social}</p>
+                          <p className="text-xs text-slate-600">{lead.municipio}, {lead.uf}</p>
+                          <p className="text-xs text-blue-600 mt-1">{lead.status}</p>
+                        </button>
+                      ))
+                    )}
                   </CardContent>
                 </Card>
-              ) : (
-                meuLeads.map(lead => (
-                  <Card key={lead.id}>
-                    <CardContent className="pt-6">
-                      <div className="flex justify-between items-start">
+              </div>
+
+              {/* Detalhes do Lead Selecionado */}
+              {leadSelecionado && (
+                <div className="lg:col-span-2 space-y-4">
+                  {/* Informações Básicas */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>{leadSelecionado.razao_social}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3 text-sm">
+                      <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <h3 className="font-semibold text-lg">{lead.razao_social}</h3>
-                          <div className="grid grid-cols-2 gap-2 mt-2 text-sm text-slate-600">
-                            <div>📞 {normalizarTelefone(lead.telefone)}</div>
-                            <div>🏢 {lead.cnpj || 'N/A'}</div>
-                            <div>📍 {lead.municipio}, {lead.uf}</div>
-                            <div>⏰ {new Date(lead.claimed_at).toLocaleDateString('pt-BR')}</div>
-                          </div>
+                          <p className="text-slate-600">CNPJ</p>
+                          <p className="font-semibold">{leadSelecionado.cnpj || 'N/A'}</p>
                         </div>
-                        <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-                          {lead.status}
-                        </span>
+                        <div>
+                          <p className="text-slate-600">Telefone</p>
+                          <p className="font-semibold">{normalizarTelefone(leadSelecionado.telefone)}</p>
+                        </div>
+                        <div>
+                          <p className="text-slate-600">Email</p>
+                          <p className="font-semibold">{leadSelecionado.email || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-slate-600">Município</p>
+                          <p className="font-semibold">{leadSelecionado.municipio}, {leadSelecionado.uf}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <p className="text-slate-600">Endereço</p>
+                          <p className="font-semibold">
+                            {leadSelecionado.logradouro}, {leadSelecionado.numero} - {leadSelecionado.bairro}
+                          </p>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
-                ))
+
+                  {/* Status e Próximo Contato */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Gerenciar Lead</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="status">Status</Label>
+                        <select
+                          id="status"
+                          value={leadSelecionado.status}
+                          onChange={(e) => {
+                            const novoStatus = e.target.value;
+                            setLeadSelecionado({ ...leadSelecionado, status: novoStatus });
+                            // Aqui você pode adicionar lógica para salvar no banco
+                          }}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
+                        >
+                          <option value="novo">Novo</option>
+                          <option value="contatado">Contatado</option>
+                          <option value="interessado">Interessado</option>
+                          <option value="proposta">Proposta Enviada</option>
+                          <option value="convertido">Convertido</option>
+                          <option value="descartado">Descartado</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="proxima-acao">Próximo Contato</Label>
+                        <input
+                          id="proxima-acao"
+                          type="datetime-local"
+                          value={proximaAcao}
+                          onChange={(e) => setProximaAcao(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
+                        />
+                      </div>
+
+                      <Button className="w-full" variant="outline">
+                        💬 Abrir WhatsApp
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  {/* Notas */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Notas</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <textarea
+                        value={novaNota}
+                        onChange={(e) => setNovaNota(e.target.value)}
+                        placeholder="Adicione uma nota sobre este lead..."
+                        className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm resize-none h-24"
+                      />
+                      <Button className="w-full" size="sm">
+                        Adicionar Nota
+                      </Button>
+
+                      {notas.length > 0 && (
+                        <div className="mt-4 space-y-2 max-h-40 overflow-y-auto">
+                          {notas.map(nota => (
+                            <div key={nota.id} className="bg-slate-50 p-2 rounded text-sm">
+                              <p className="text-slate-700">{nota.nota}</p>
+                              <p className="text-xs text-slate-500 mt-1">
+                                {new Date(nota.created_at).toLocaleDateString('pt-BR')}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
               )}
             </div>
           </TabsContent>
