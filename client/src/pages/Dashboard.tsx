@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -19,12 +19,24 @@ const supabase = SUPABASE_URL && SUPABASE_KEY
 interface Lead {
   id: number;
   cnpj: string;
-  razao_social: string;
   telefone: string;
+  razao_social: string;
+  nome_fantasia: string;
+  email: string;
+  logradouro: string;
+  numero: string;
+  bairro: string;
+  cep: string;
   municipio: string;
   uf: string;
-  claimed_by: string | null;
-  claimed_at: string | null;
+  data_abertura: string;
+  natureza_juridica: string;
+  situacao: string;
+  atividade_principal: string;
+  capital_social: string;
+  tipo: string;
+  claimed_by: string;
+  claimed_at: string;
   status: string;
 }
 
@@ -32,184 +44,135 @@ interface Vendedor {
   id: string;
   nome: string;
   email: string;
-  is_admin?: boolean;
-}
-
-interface RelatorioImportacao {
-  total: number;
-  novos: number;
-  atualizados: number;
-  duplicados: number;
-  erros: number;
-  detalhes: string[];
-}
-
-interface Filtros {
-  busca: string;
-  uf: string;
-  ddd: string;
-  municipio: string;
+  is_admin: boolean;
 }
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const [vendedor, setVendedor] = useState<Vendedor | null>(null);
-  const [todosLeads, setTodosLeads] = useState<Lead[]>([]);
-  const [meusLeads, setMeusLeads] = useState<Lead[]>([]);
-  const [carregando, setCarregando] = useState(true);
-  const [processando, setProcessando] = useState(false);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [meuLeads, setMeuLeads] = useState<Lead[]>([]);
+  const [arquivo, setArquivo] = useState<File | null>(null);
+  const [carregando, setCarregando] = useState(false);
   const [mensagem, setMensagem] = useState('');
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [arquivoSelecionado, setArquivoSelecionado] = useState<File | null>(null);
-  const [relatorio, setRelatorio] = useState<RelatorioImportacao | null>(null);
-  const [filtros, setFiltros] = useState<Filtros>({
-    busca: '',
-    uf: '',
-    ddd: '',
-    municipio: ''
-  });
+  const [relatorio, setRelatorio] = useState<any>(null);
   const [pagina, setPagina] = useState(1);
-  const ITENS_POR_PAGINA = 50;
+  const [filtros, setFiltros] = useState({ busca: '', uf: '', ddd: '', municipio: '' });
+  const [ufs, setUfs] = useState<string[]>([]);
+  const [municipios, setMunicipios] = useState<string[]>([]);
 
   useEffect(() => {
-    carregarDados();
+    verificarAutenticacao();
   }, []);
 
-  const carregarDados = async () => {
-    if (!supabase) return;
+  useEffect(() => {
+    if (vendedor) {
+      carregarLeads();
+      carregarMeuLeads();
+    }
+  }, [vendedor, filtros, pagina]);
+
+  const verificarAutenticacao = async () => {
+    if (!supabase) {
+      setMensagem('✗ Erro: Supabase não configurado');
+      return;
+    }
 
     try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError || !user) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
         setLocation('/login');
         return;
       }
 
-      // Carregar dados do vendedor
-      const { data: vendedorData, error: vendedorError } = await supabase
+      const { data: vendedorData } = await supabase
         .from('vendedores')
         .select('*')
         .eq('id', user.id)
         .single();
 
-      if (vendedorError) {
-        const { data: newVendedor } = await supabase
-          .from('vendedores')
-          .insert({
-            id: user.id,
-            nome: user.email?.split('@')[0] || 'Vendedor',
-            email: user.email,
-            is_admin: false,
-          })
-          .select()
-          .single();
-        
-        if (newVendedor) {
-          setVendedor(newVendedor);
-          setIsAdmin(false);
-        }
-      } else {
+      if (vendedorData) {
         setVendedor(vendedorData);
-        setIsAdmin(vendedorData.is_admin || false);
       }
-
-      // Carregar TODOS os leads disponíveis
-      const { data: leadsData } = await supabase
-        .from('leads')
-        .select('*')
-        .is('claimed_by', null)
-        .order('created_at', { ascending: false });
-
-      setTodosLeads(leadsData || []);
-      setPagina(1);
-
-      // Carregar meus leads
-      if (user.id) {
-        const { data: meusLeadsData } = await supabase
-          .from('leads')
-          .select('*')
-          .eq('claimed_by', user.id)
-          .order('claimed_at', { ascending: false });
-
-        setMeusLeads(meusLeadsData || []);
-      }
-    } catch (err) {
-      console.error('Erro ao carregar dados:', err);
-    } finally {
-      setCarregando(false);
+    } catch (error) {
+      console.error('Erro ao verificar autenticação:', error);
+      setLocation('/login');
     }
   };
 
-  // Filtrar leads baseado nos critérios
-  const leadsFiltrados = useMemo(() => {
-    return todosLeads.filter(lead => {
-      // Filtro por busca (razão social)
-      if (filtros.busca && !lead.razao_social.toLowerCase().includes(filtros.busca.toLowerCase())) {
-        return false;
-      }
-
-      // Filtro por UF
-      if (filtros.uf && lead.uf !== filtros.uf) {
-        return false;
-      }
-
-      // Filtro por DDD (primeiros 2 dígitos do telefone)
-      if (filtros.ddd && !lead.telefone?.startsWith(filtros.ddd)) {
-        return false;
-      }
-
-      // Filtro por município
-      if (filtros.municipio && lead.municipio !== filtros.municipio) {
-        return false;
-      }
-
-      return true;
-    });
-  }, [todosLeads, filtros]);
-
-  // Paginação
-  const leadsExibidos = leadsFiltrados.slice(0, pagina * ITENS_POR_PAGINA);
-  const temMais = leadsExibidos.length < leadsFiltrados.length;
-
-  // Extrair UFs e municípios únicos para dropdowns
-  const ufs = useMemo(() => {
-    const set = new Set(todosLeads.map(l => l.uf).filter(Boolean));
-    return Array.from(set).sort();
-  }, [todosLeads]);
-
-  const municipios = useMemo(() => {
-    const set = new Set(
-      todosLeads
-        .filter(l => !filtros.uf || l.uf === filtros.uf)
-        .map(l => l.municipio)
-        .filter(Boolean)
-    );
-    return Array.from(set).sort();
-  }, [todosLeads, filtros.uf]);
-
-  const pegarLead = async (leadId: number) => {
-    if (!supabase) return;
+  const carregarLeads = async () => {
+    if (!supabase || !vendedor) return;
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { error } = await supabase
+      let query = supabase
         .from('leads')
-        .update({
-          claimed_by: user.id,
-          claimed_at: new Date().toISOString(),
-          status: 'contatado'
-        })
-        .eq('id', leadId);
+        .select('*')
+        .is('claimed_by', null)
+        .order('id', { ascending: false })
+        .range((pagina - 1) * 50, pagina * 50 - 1);
 
-      if (error) throw error;
+      if (filtros.busca) {
+        query = query.ilike('razao_social', `%${filtros.busca}%`);
+      }
+      if (filtros.uf) {
+        query = query.eq('uf', filtros.uf);
+      }
+      if (filtros.ddd) {
+        query = query.ilike('telefone', `${filtros.ddd}%`);
+      }
+      if (filtros.municipio) {
+        query = query.eq('municipio', filtros.municipio);
+      }
 
-      await carregarDados();
-      setMensagem('✓ Lead pegado com sucesso!');
-      setTimeout(() => setMensagem(''), 3000);
-    } catch (err) {
-      setMensagem('✗ Erro ao pegar lead');
+      const { data } = await query;
+      if (data) {
+        setLeads(data);
+        
+        // Carregar UFs únicos
+        const { data: ufsData } = await supabase
+          .from('leads')
+          .select('uf')
+          .neq('uf', null);
+        
+        if (ufsData) {
+          const ufsUnicos = [...new Set(ufsData.map(l => l.uf))].sort();
+          setUfs(ufsUnicos);
+        }
+
+        // Carregar municípios do UF selecionado
+        if (filtros.uf) {
+          const { data: municipiosData } = await supabase
+            .from('leads')
+            .select('municipio')
+            .eq('uf', filtros.uf)
+            .neq('municipio', null);
+          
+          if (municipiosData) {
+            const municipiosUnicos = [...new Set(municipiosData.map(l => l.municipio))].sort();
+            setMunicipios(municipiosUnicos);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao carregar leads:', error);
+    }
+  };
+
+  const carregarMeuLeads = async () => {
+    if (!supabase || !vendedor) return;
+
+    try {
+      const { data } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('claimed_by', vendedor.id)
+        .order('claimed_at', { ascending: false });
+
+      if (data) {
+        setMeuLeads(data);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar meus leads:', error);
     }
   };
 
@@ -220,85 +183,73 @@ export default function Dashboard() {
   };
 
   const gerarMensagemWhatsApp = (razaoSocial: string, municipio: string, nomeVendedor: string) => {
-    // Saudações variadas
+    // Saudações profissionais
     const saudacoes = [
-      'Oi',
       'Olá',
-      'E aí',
-      'Tudo bem?',
       'Bom dia',
       'Boa tarde',
-      'Boa noite',
-      'Opa',
-      'Fala',
-      'Opa, tudo certo?'
+      'Boa noite'
     ];
 
-    // Introduções variadas
+    // Introduções profissionais
     const introducoes = [
-      `Sou ${nomeVendedor} da Vellozia`,
-      `Meu nome é ${nomeVendedor}, sou representante da Vellozia`,
+      `Sou ${nomeVendedor}, representante da Vellozia`,
+      `Meu nome é ${nomeVendedor}, trabalho com a Vellozia`,
       `Aqui é ${nomeVendedor} da Vellozia`,
-      `${nomeVendedor} aqui, da Vellozia`,
-      `Sou da Vellozia, meu nome é ${nomeVendedor}`,
-      `Trabalho com a Vellozia, sou ${nomeVendedor}`
+      `${nomeVendedor} aqui, representante da Vellozia`
     ];
 
-    // Aberturas variadas
-    const aberturas = [
-      `Vi que vocês trabalham com estética em ${municipio}`,
-      `Vocês são de ${municipio}, certo?`,
-      `Notei que vocês atuam em ${municipio}`,
-      `Vejo que vocês estão em ${municipio}`,
-      `Achei o contato de vocês em ${municipio}`
+    // Contextualizações
+    const contextos = [
+      `Identificamos que vocês atuam em ${municipio} com procedimentos estéticos`,
+      `Vi que vocês oferecem serviços de estética em ${municipio}`,
+      `Notei que vocês trabalham com procedimentos em ${municipio}`,
+      `Vocês atuam em ${municipio}, correto?`
     ];
 
-    // Propostas variadas
+    // Propostas de valor (foco em benefícios concretos)
     const propostas = [
-      'Gostaria de conversar sobre nossos produtos de qualidade premium',
-      'Tenho uma proposta interessante de produtos estéticos',
-      'Queria apresentar nossas soluções em bioestimuladores e toxinas',
-      'Temos produtos diferenciados que podem interessar vocês',
-      'Poderia ser útil conversar sobre nosso catálogo?',
-      'Vocês já conhecem a Vellozia? Temos ótimas soluções',
-      'Trabalho com produtos de excelente qualidade, gostaria de conversar',
-      'Tenho certeza que vocês vão gostar do que oferecemos'
+      'Trabalho com fornecedores de toxinas e preenchedores com melhor custo-benefício do mercado',
+      'Temos acesso a produtos com certificação internacional e prazos de entrega otimizados',
+      'Oferecemos soluções em bioestimuladores e preenchedores com excelente relação qualidade-preço',
+      'Posso apresentar alternativas de fornecimento que reduzem custos operacionais',
+      'Temos portfólio de produtos premium com suporte técnico diferenciado',
+      'Oferecemos condições especiais para consultórios e clínicas estabelecidas'
     ];
 
-    // Perguntas para engajar
+    // Perguntas diagnósticas (profissionais)
     const perguntas = [
-      'Qual é o principal produto que vocês mais utilizam?',
-      'Vocês já trabalham com toxinas e preenchedores?',
-      'Qual é o seu principal fornecedor atualmente?',
-      'Vocês estão abertos a conhecer novos fornecedores?',
-      'Qual é o seu maior desafio em relação aos produtos que usa?',
-      'Vocês já conhecem a Vellozia?'
+      'Qual é seu principal fornecedor de toxinas e preenchedores atualmente?',
+      'Vocês têm interesse em conhecer alternativas com melhor custo-benefício?',
+      'Qual é o seu volume mensal de procedimentos com esses produtos?',
+      'Vocês buscam fornecedores com suporte técnico e consultoria?',
+      'Qual é seu principal critério na escolha de fornecedores?',
+      'Vocês estariam abertos a uma proposta comercial personalizada?'
     ];
 
-    // Chamadas para ação variadas
+    // Chamadas para ação diretas
     const ctas = [
-      'Posso enviar nosso catálogo?',
-      'Quer que eu mande mais informações?',
-      'Podemos marcar uma conversa rápida?',
-      'Topa conversar um pouco?',
-      'Deixa eu te apresentar nossos produtos',
-      'Vou te mostrar o que temos de melhor',
-      'Quer conhecer nossas opções?'
+      'Posso enviar nossa tabela de preços?',
+      'Gostaria de agendar uma conversa breve?',
+      'Posso passar mais detalhes sobre nossas soluções?',
+      'Qual seria o melhor momento para conversar?',
+      'Posso compartilhar nosso catálogo de produtos?',
+      'Quando você teria disponibilidade para uma conversa rápida?'
     ];
 
-    // Variações de estrutura
+    // Variações de estrutura (profissional)
     const estruturas = [
-      // Estrutura 1: Saudação + Introdução + Abertura + Proposta + CTA
-      `${saudacoes[Math.floor(Math.random() * saudacoes.length)]}! 👋\n\n${introducoes[Math.floor(Math.random() * introducoes.length)]}. ${aberturas[Math.floor(Math.random() * aberturas.length)]}.\n\n${propostas[Math.floor(Math.random() * propostas.length)]}!\n\n${ctas[Math.floor(Math.random() * ctas.length)]}`,
+      // Estrutura 1: Apresentação + Contexto + Proposta + Pergunta
+      `${saudacoes[Math.floor(Math.random() * saudacoes.length)]},\n\n${introducoes[Math.floor(Math.random() * introducoes.length)]}.\n\n${contextos[Math.floor(Math.random() * contextos.length)]}.\n\n${propostas[Math.floor(Math.random() * propostas.length)]}.\n\n${perguntas[Math.floor(Math.random() * perguntas.length)]}?`,
       
-      // Estrutura 2: Saudação + Abertura + Proposta + Pergunta
-      `${saudacoes[Math.floor(Math.random() * saudacoes.length)]}! ${introducoes[Math.floor(Math.random() * introducoes.length)]}.\n\n${aberturas[Math.floor(Math.random() * aberturas.length)]}. ${propostas[Math.floor(Math.random() * propostas.length)]}.\n\n${perguntas[Math.floor(Math.random() * perguntas.length)]}`,
+      // Estrutura 2: Apresentação + Pergunta + Proposta
+      `${saudacoes[Math.floor(Math.random() * saudacoes.length)]},\n\n${introducoes[Math.floor(Math.random() * introducoes.length)]}.\n\n${perguntas[Math.floor(Math.random() * perguntas.length)]}?\n\n${propostas[Math.floor(Math.random() * propostas.length)]}.\n\n${ctas[Math.floor(Math.random() * ctas.length)]}`,
       
-      // Estrutura 3: Saudação + Pergunta + Proposta
-      `${saudacoes[Math.floor(Math.random() * saudacoes.length)]}! ${perguntas[Math.floor(Math.random() * perguntas.length)]}\n\n${introducoes[Math.floor(Math.random() * introducoes.length)]}.\n\n${propostas[Math.floor(Math.random() * propostas.length)]}\n\n${ctas[Math.floor(Math.random() * ctas.length)]}`,
+      // Estrutura 3: Consultiva direta
+      `${saudacoes[Math.floor(Math.random() * saudacoes.length)]},\n\n${introducoes[Math.floor(Math.random() * introducoes.length)]}.\n\n${contextos[Math.floor(Math.random() * contextos.length)]}.\n\n${perguntas[Math.floor(Math.random() * perguntas.length)]}?`,
       
-      // Estrutura 4: Consultiva
-      `${saudacoes[Math.floor(Math.random() * saudacoes.length)]}!\n\n${introducoes[Math.floor(Math.random() * introducoes.length)]}.\n\n${perguntas[Math.floor(Math.random() * perguntas.length)]}\n\nFico no aguardo! 😊`,
+      // Estrutura 4: Proposta + Contexto + CTA
+      `${saudacoes[Math.floor(Math.random() * saudacoes.length)]},\n\n${propostas[Math.floor(Math.random() * propostas.length)]}.\n\n${introducoes[Math.floor(Math.random() * introducoes.length)]}.\n\n${ctas[Math.floor(Math.random() * ctas.length)]}`,
     ];
 
     return estruturas[Math.floor(Math.random() * estruturas.length)];
@@ -315,158 +266,192 @@ export default function Dashboard() {
   const normalizarTelefone = (telefone: string): string => {
     if (!telefone) return '';
     const apenasNumeros = telefone.replace(/\D/g, '');
-    return apenasNumeros.slice(-11) || apenasNumeros;
+    if (apenasNumeros.length === 11) {
+      return `(${apenasNumeros.slice(0, 2)}) ${apenasNumeros.slice(2, 7)}-${apenasNumeros.slice(7)}`;
+    }
+    return apenasNumeros;
   };
 
-  const normalizarCNPJ = (cnpj: string): string => {
-    if (!cnpj) return '';
-    return cnpj.replace(/\D/g, '').slice(0, 14);
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !supabase) return;
-
-    setArquivoSelecionado(file);
-    setMensagem(`✓ Arquivo com ${file.name} carregado. Clique em "Importar Agora" para processar.`);
-  };
-
-  const importarArquivo = async () => {
-    if (!arquivoSelecionado || !supabase) return;
-
-    setProcessando(true);
-    setMensagem('');
+  const pegarLead = async (leadId: number) => {
+    if (!supabase || !vendedor) return;
 
     try {
-      const arrayBuffer = await arquivoSelecionado.arrayBuffer();
+      const { error } = await supabase
+        .from('leads')
+        .update({
+          claimed_by: vendedor.id,
+          claimed_at: new Date().toISOString(),
+          status: 'contatado'
+        })
+        .eq('id', leadId);
+
+      if (error) throw error;
+
+      setMensagem('✓ Lead capturado com sucesso!');
+      await carregarLeads();
+      await carregarMeuLeads();
+      setTimeout(() => setMensagem(''), 3000);
+    } catch (error) {
+      console.error('Erro ao pegar lead:', error);
+      setMensagem('✗ Erro ao capturar lead');
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setArquivo(e.target.files[0]);
+      setMensagem('');
+    }
+  };
+
+  const processarImportacao = async () => {
+    if (!arquivo || !supabase || !vendedor || !vendedor.is_admin) {
+      setMensagem('✗ Erro: Arquivo não selecionado ou sem permissão');
+      return;
+    }
+
+    setCarregando(true);
+    setMensagem('Processando arquivo...');
+
+    try {
+      const arrayBuffer = await arquivo.arrayBuffer();
       const workbook = XLSX.read(arrayBuffer, { type: 'array' });
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const dados = XLSX.utils.sheet_to_json(worksheet);
 
-      const relatorio: RelatorioImportacao = {
-        total: dados.length,
-        novos: 0,
-        atualizados: 0,
-        duplicados: 0,
-        erros: 0,
-        detalhes: []
-      };
+      const totalLinhas = dados.length;
+      let novosInseridos = 0;
+      let duplicadosIgnorados = 0;
+      let duplicadosAtualizados = 0;
+      let erros: any[] = [];
 
-      const leadsParaInserir: any[] = [];
-      const cnpjsExistentes = new Set<string>();
-      const telefonesExistentes = new Set<string>();
+      for (const row of dados) {
+        const cnpj = String(row.CNPJ || '').replace(/\D/g, '');
+        const telefone = String(row.Telefone || '').replace(/\D/g, '');
+        const razaoSocial = String(row['Razão Social'] || '').trim();
+        const municipio = String(row.Município || '').trim().toUpperCase();
+        const uf = String(row.UF || '').trim().toUpperCase();
 
-      // Buscar CNPJs e telefones existentes
-      const { data: leadsExistentes } = await supabase
-        .from('leads')
-        .select('cnpj, telefone');
+        if (!telefone) {
+          erros.push({ linha: row, motivo: 'Telefone vazio' });
+          continue;
+        }
 
-      if (leadsExistentes) {
-        leadsExistentes.forEach(lead => {
-          if (lead.cnpj) cnpjsExistentes.add(lead.cnpj);
-          if (lead.telefone) telefonesExistentes.add(lead.telefone);
-        });
-      }
-
-      // Processar cada linha
-      for (const row of dados as any[]) {
         try {
-          const razaoSocial = (row as any)['Razão Social'] || (row as any)['razao_social'] || '';
-          const cnpj = normalizarCNPJ((row as any)['CNPJ'] || (row as any)['cnpj'] || '');
-          const telefone = normalizarTelefone((row as any)['Telefone'] || (row as any)['telefone'] || '');
+          // Verificar duplicatas
+          let duplicado = false;
 
-          if (!razaoSocial) {
-            relatorio.erros++;
-            relatorio.detalhes.push('Razão social vazia');
-            continue;
+          if (cnpj) {
+            const { data: existeCnpj } = await supabase
+              .from('leads')
+              .select('id')
+              .eq('cnpj', cnpj)
+              .limit(1);
+
+            if (existeCnpj && existeCnpj.length > 0) {
+              duplicado = true;
+              duplicadosIgnorados++;
+              continue;
+            }
           }
 
-          // Verificar duplicação
-          if (cnpj && cnpjsExistentes.has(cnpj)) {
-            relatorio.duplicados++;
-            relatorio.detalhes.push(`Duplicado: CNPJ ${cnpj}`);
-            continue;
+          if (!duplicado && telefone) {
+            const { data: existeTelefone } = await supabase
+              .from('leads')
+              .select('id')
+              .eq('telefone', telefone)
+              .limit(1);
+
+            if (existeTelefone && existeTelefone.length > 0) {
+              duplicado = true;
+              duplicadosIgnorados++;
+              continue;
+            }
           }
 
-          if (telefone && telefonesExistentes.has(telefone)) {
-            relatorio.duplicados++;
-            relatorio.detalhes.push(`Duplicado: Telefone ${telefone}`);
-            continue;
+          if (!duplicado) {
+            const { error } = await supabase
+              .from('leads')
+              .insert({
+                cnpj: cnpj || null,
+                telefone,
+                razao_social: razaoSocial,
+                nome_fantasia: String(row['Nome Fantasia'] || '').trim() || null,
+                email: String(row.Email || '').trim() || null,
+                logradouro: String(row.Logradouro || '').trim() || null,
+                numero: String(row.Número || '').trim() || null,
+                bairro: String(row.Bairro || '').trim() || null,
+                cep: String(row.CEP || '').replace(/\D/g, '') || null,
+                municipio,
+                uf,
+                data_abertura: String(row['Data Abertura'] || '').trim() || null,
+                natureza_juridica: String(row['Natureza Jurídica'] || '').trim() || null,
+                situacao: String(row.Situação || '').trim() || null,
+                atividade_principal: String(row['Atividade Principal'] || '').trim() || null,
+                capital_social: String(row['Capital Social'] || '').trim() || null,
+                tipo: String(row.Tipo || '').trim() || null,
+                status: 'novo'
+              });
+
+            if (!error) {
+              novosInseridos++;
+            }
           }
-
-          // Preparar lead para inserção
-          leadsParaInserir.push({
-            cnpj: cnpj || null,
-            telefone: telefone || null,
-            razao_social: razaoSocial,
-            nome_fantasia: (row as any)['Nome Fantasia'] || (row as any)['nome_fantasia'] || null,
-            email: (row as any)['Email'] || (row as any)['email'] || null,
-            logradouro: (row as any)['Logradouro'] || (row as any)['logradouro'] || null,
-            numero: (row as any)['Número'] || (row as any)['numero'] || null,
-            bairro: (row as any)['Bairro'] || (row as any)['bairro'] || null,
-            cep: (row as any)['CEP'] || (row as any)['cep'] || null,
-            municipio: (row as any)['Município'] || (row as any)['municipio'] || null,
-            uf: ((row as any)['UF'] || (row as any)['uf'] || '').toUpperCase(),
-            data_abertura: (row as any)['Data Abertura'] || (row as any)['data_abertura'] || null,
-            natureza_juridica: (row as any)['Natureza Jurídica'] || (row as any)['natureza_juridica'] || null,
-            situacao: (row as any)['Situação'] || (row as any)['situacao'] || null,
-            atividade_principal: (row as any)['Atividade Principal'] || (row as any)['atividade_principal'] || null,
-            capital_social: (row as any)['Capital Social'] || (row as any)['capital_social'] || null,
-            tipo: (row as any)['Tipo'] || (row as any)['tipo'] || null,
-            status: 'novo'
-          });
-
-          if (cnpj) cnpjsExistentes.add(cnpj);
-          if (telefone) telefonesExistentes.add(telefone);
-          relatorio.novos++;
-        } catch (err) {
-          relatorio.erros++;
-          relatorio.detalhes.push(`Erro ao processar linha: ${err}`);
+        } catch (error) {
+          console.error('Erro ao processar linha:', error);
+          erros.push({ linha: row, motivo: 'Erro ao processar' });
         }
       }
 
-      // Inserir leads em lotes
-      if (leadsParaInserir.length > 0) {
-        const { error: insertError } = await supabase
-          .from('leads')
-          .insert(leadsParaInserir);
+      const relatorioFinal = {
+        totalLinhas,
+        novosInseridos,
+        duplicadosIgnorados,
+        duplicadosAtualizados,
+        errosTotal: erros.length,
+        erros
+      };
 
-        if (insertError) throw insertError;
-      }
+      setRelatorio(relatorioFinal);
+      setMensagem(`✓ Importação concluída! ${novosInseridos} novos leads adicionados.`);
 
-      setRelatorio(relatorio);
-      setMensagem(`✓ Importação concluída! ${relatorio.novos} novos leads adicionados.`);
-      setArquivoSelecionado(null);
+      // Salvar log
+      await supabase.from('import_logs').insert({
+        arquivo_nome: arquivo.name,
+        total_linhas: totalLinhas,
+        novos_inseridos: novosInseridos,
+        duplicados_ignorados: duplicadosIgnorados,
+        duplicados_atualizados: duplicadosAtualizados,
+        erros_total: erros.length,
+        tempo_processamento_ms: 0,
+        criado_em: new Date().toISOString(),
+        criado_por: vendedor.id
+      });
 
-      // Recarregar dados
-      setTimeout(() => carregarDados(), 1000);
-    } catch (err) {
-      console.error('Erro ao importar:', err);
-      setMensagem(`✗ Erro ao importar arquivo: ${err}`);
+      await carregarLeads();
+    } catch (error) {
+      console.error('Erro ao importar:', error);
+      setMensagem('✗ Erro ao importar arquivo');
     } finally {
-      setProcessando(false);
+      setCarregando(false);
     }
   };
 
-  if (carregando) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
-          <p>Carregando...</p>
-        </div>
-      </div>
-    );
+  const leadsExibidos = leads.slice(0, 50);
+  const leadsFiltrados = leads;
+  const temMais = leadsFiltrados.length > leadsExibidos.length;
+
+  if (!vendedor) {
+    return <div className="flex items-center justify-center min-h-screen">Carregando...</div>;
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      {/* Header */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+    <div className="min-h-screen bg-slate-50">
+      <div className="bg-white border-b border-slate-200">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold">Importador de Leads</h1>
-            <p className="text-slate-600">Bem-vindo, {vendedor?.nome}!</p>
+            <h1 className="text-2xl font-bold text-slate-900">Importador de Leads</h1>
+            <p className="text-sm text-slate-600">Bem-vindo, {vendedor.nome}!</p>
           </div>
           <Button variant="outline" onClick={handleLogout}>
             <LogOut className="w-4 h-4 mr-2" />
@@ -475,35 +460,33 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Conteúdo */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-4 py-6">
         {mensagem && (
-          <div className={`mb-6 p-4 rounded-lg border ${
-            mensagem.startsWith('✓') 
-              ? 'bg-green-50 border-green-200 text-green-700'
-              : 'bg-red-50 border-red-200 text-red-700'
-          }`}>
-            {mensagem}
-          </div>
+          <Card className={mensagem.startsWith('✓') ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}>
+            <CardContent className="pt-6">
+              <p className={mensagem.startsWith('✓') ? 'text-green-700' : 'text-red-700'}>
+                {mensagem}
+              </p>
+            </CardContent>
+          </Card>
         )}
 
-        <Tabs defaultValue="leads" className="w-full">
+        <Tabs defaultValue="leads" className="mt-6">
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="leads">Leads Disponíveis ({leadsFiltrados.length})</TabsTrigger>
-            <TabsTrigger value="meus">Meus Leads ({meusLeads.length})</TabsTrigger>
-            {isAdmin && <TabsTrigger value="importar">Importar</TabsTrigger>}
+            <TabsTrigger value="leads">Leads Disponíveis ({leads.length})</TabsTrigger>
+            <TabsTrigger value="meus">Meus Leads ({meuLeads.length})</TabsTrigger>
+            {vendedor.is_admin && <TabsTrigger value="importar">Importar</TabsTrigger>}
           </TabsList>
 
-          {/* Leads Disponíveis com Filtros */}
+          {/* Leads Disponíveis */}
           <TabsContent value="leads" className="space-y-4">
-            {/* Filtros */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Filtros Avançados</CardTitle>
+                <CardTitle>Filtros</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {/* Busca por Nome */}
+                  {/* Filtro Busca */}
                   <div className="space-y-2">
                     <Label htmlFor="busca">Buscar por Nome</Label>
                     <Input
@@ -590,8 +573,8 @@ export default function Dashboard() {
             </Card>
 
             {/* Lista de Leads */}
-            <div className="grid gap-4">
-              {leadsExibidos.length === 0 ? (
+            <div className="space-y-4">
+              {leads.length === 0 ? (
                 <Card>
                   <CardContent className="pt-6 text-center text-slate-600">
                     {leadsFiltrados.length === 0 
@@ -654,33 +637,29 @@ export default function Dashboard() {
           {/* Meus Leads */}
           <TabsContent value="meus" className="space-y-4">
             <div className="grid gap-4">
-              {meusLeads.length === 0 ? (
+              {meuLeads.length === 0 ? (
                 <Card>
                   <CardContent className="pt-6 text-center text-slate-600">
-                    Você ainda não pegou nenhum lead
+                    Você ainda não capturou nenhum lead
                   </CardContent>
                 </Card>
               ) : (
-                meusLeads.map(lead => (
-                  <Card key={lead.id} className="hover:shadow-md transition-shadow">
+                meuLeads.map(lead => (
+                  <Card key={lead.id}>
                     <CardContent className="pt-6">
-                      <div>
-                        <h3 className="font-semibold text-lg">{lead.razao_social}</h3>
-                        <div className="grid grid-cols-2 gap-2 mt-2 text-sm text-slate-600">
-                          <div>📞 {lead.telefone || 'N/A'}</div>
-                          <div>🏢 {lead.cnpj || 'N/A'}</div>
-                          <div>📍 {lead.municipio}, {lead.uf}</div>
-                          <div>📅 {new Date(lead.claimed_at || '').toLocaleDateString('pt-BR')}</div>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="font-semibold text-lg">{lead.razao_social}</h3>
+                          <div className="grid grid-cols-2 gap-2 mt-2 text-sm text-slate-600">
+                            <div>📞 {normalizarTelefone(lead.telefone)}</div>
+                            <div>🏢 {lead.cnpj || 'N/A'}</div>
+                            <div>📍 {lead.municipio}, {lead.uf}</div>
+                            <div>⏰ {new Date(lead.claimed_at).toLocaleDateString('pt-BR')}</div>
+                          </div>
                         </div>
-                        <div className="mt-2">
-                          <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                            lead.status === 'novo' ? 'bg-blue-100 text-blue-700' :
-                            lead.status === 'contatado' ? 'bg-yellow-100 text-yellow-700' :
-                            'bg-green-100 text-green-700'
-                          }`}>
-                            {lead.status}
-                          </span>
-                        </div>
+                        <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                          {lead.status}
+                        </span>
                       </div>
                     </CardContent>
                   </Card>
@@ -689,77 +668,70 @@ export default function Dashboard() {
             </div>
           </TabsContent>
 
-          {/* Importar (Admin) */}
-          {isAdmin && (
-            <TabsContent value="importar">
+          {/* Importar */}
+          {vendedor.is_admin && (
+            <TabsContent value="importar" className="space-y-4">
               <Card>
                 <CardHeader>
                   <CardTitle>Importar Leads</CardTitle>
-                  <CardDescription>
-                    Selecione um arquivo XLSX com dados de leads
-                  </CardDescription>
+                  <CardDescription>Selecione um arquivo XLSX com dados de leads</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="border-2 border-dashed rounded-lg p-8 text-center">
+                <CardContent className="space-y-4">
+                  <div className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center">
+                    <input
+                      type="file"
+                      accept=".xlsx"
+                      onChange={handleFileChange}
+                      className="hidden"
+                      id="file-input"
+                    />
+                    <label htmlFor="file-input" className="cursor-pointer">
                       <Upload className="w-8 h-8 mx-auto mb-2 text-slate-400" />
-                      <Label htmlFor="file" className="cursor-pointer">
-                        <span className="text-blue-600 hover:underline font-medium">Clique para selecionar</span>
-                        {' '}ou arraste um arquivo
-                      </Label>
-                      <Input
-                        id="file"
-                        type="file"
-                        accept=".xlsx"
-                        onChange={handleFileUpload}
-                        disabled={processando}
-                        className="hidden"
-                      />
-                      <p className="text-sm text-slate-500 mt-2">Apenas arquivos .xlsx</p>
-                      {arquivoSelecionado && (
-                        <p className="text-sm text-green-600 mt-2 font-medium">
-                          ✓ {arquivoSelecionado.name}
-                        </p>
-                      )}
-                    </div>
-
-                    {arquivoSelecionado && (
-                      <Button 
-                        onClick={importarArquivo}
-                        disabled={processando}
-                        className="w-full"
-                        size="lg"
-                      >
-                        {processando ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Importando...
-                          </>
-                        ) : (
-                          <>
-                            <Download className="w-4 h-4 mr-2" />
-                            Importar Agora
-                          </>
-                        )}
-                      </Button>
-                    )}
-
-                    {relatorio && (
-                      <Card className="bg-slate-50">
-                        <CardHeader>
-                          <CardTitle className="text-lg">Relatório de Importação</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-2 text-sm">
-                          <div>Total de linhas: <strong>{relatorio.total}</strong></div>
-                          <div className="text-green-600">Novos inseridos: <strong>{relatorio.novos}</strong></div>
-                          <div className="text-yellow-600">Duplicados: <strong>{relatorio.duplicados}</strong></div>
-                          <div className="text-red-600">Erros: <strong>{relatorio.erros}</strong></div>
-                        </CardContent>
-                      </Card>
-                    )}
+                      <p className="text-sm font-medium text-slate-700">
+                        {arquivo ? arquivo.name : 'Clique para selecionar ou arraste um arquivo'}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-1">Apenas arquivos .xlsx</p>
+                    </label>
                   </div>
+
+                  <Button 
+                    onClick={processarImportacao}
+                    disabled={!arquivo || carregando}
+                    className="w-full"
+                  >
+                    {carregando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+                    {carregando ? 'Processando...' : 'Importar Agora'}
+                  </Button>
                 </CardContent>
               </Card>
+
+              {relatorio && (
+                <Card className="border-green-200 bg-green-50">
+                  <CardHeader>
+                    <CardTitle className="text-green-900">Relatório de Importação</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-slate-600">Total de linhas</p>
+                        <p className="text-2xl font-bold text-green-700">{relatorio.totalLinhas}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-600">Novos inseridos</p>
+                        <p className="text-2xl font-bold text-green-700">{relatorio.novosInseridos}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-600">Duplicados ignorados</p>
+                        <p className="text-2xl font-bold text-yellow-700">{relatorio.duplicadosIgnorados}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-600">Erros</p>
+                        <p className="text-2xl font-bold text-red-700">{relatorio.errosTotal}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
           )}
         </Tabs>
