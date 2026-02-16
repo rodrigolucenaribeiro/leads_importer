@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { gerarMensagemWhatsApp } from './mensagens';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -207,78 +208,7 @@ export default function Dashboard() {
     setLocation('/login');
   };
 
-  const gerarMensagemWhatsApp = (razaoSocial: string, municipio: string) => {
-    // Saudações profissionais
-    const saudacoes = [
-      'Olá',
-      'Bom dia',
-      'Boa tarde',
-      'Boa noite'
-    ];
 
-    // Introduções com Vellozia Produtos Hospitalares
-    const introducoes = [
-      'Sou da Vellozia Produtos Hospitalares',
-      'Aqui é Vellozia Produtos Hospitalares',
-      'Trabalho com a Vellozia Produtos Hospitalares',
-      'Vellozia Produtos Hospitalares aqui'
-    ];
-
-    // Contextualizações
-    const contextos = [
-      `Identificamos que vocês atuam em ${municipio} com procedimentos estéticos`,
-      `Vi que vocês oferecem serviços de estética em ${municipio}`,
-      `Notei que vocês trabalham com procedimentos em ${municipio}`,
-      `Vocês atuam em ${municipio}, correto?`
-    ];
-
-    // Propostas de valor (foco em benefícios concretos)
-    const propostas = [
-      'Somos distribuidoras de produtos para harmonização facial e corporal com 9 filiais pelo Brasil',
-      'Temos acesso a produtos com certificação internacional e prazos de entrega otimizados',
-      'Oferecemos soluções em bioestimuladores e preenchedores com excelente relação qualidade-preço',
-      'Posso apresentar alternativas de fornecimento que reduzem custos operacionais',
-      'Temos portfólio de produtos premium com suporte técnico diferenciado',
-      'Oferecemos condições especiais para consultórios e clínicas estabelecidas'
-    ];
-
-    // Perguntas diagnósticas (profissionais)
-    const perguntas = [
-      'Qual é seu principal fornecedor de toxinas e preenchedores atualmente?',
-      'Vocês têm interesse em conhecer alternativas com melhor custo-benefício?',
-      'Qual é o seu volume mensal de procedimentos com esses produtos?',
-      'Vocês buscam fornecedores com suporte técnico e consultoria?',
-      'Qual é seu principal critério na escolha de fornecedores?',
-      'Vocês estariam abertos a uma proposta comercial personalizada?'
-    ];
-
-    // Chamadas para ação diretas
-    const ctas = [
-      'Posso enviar nossa tabela de preços?',
-      'Gostaria de agendar uma conversa breve?',
-      'Posso passar mais detalhes sobre nossas soluções?',
-      'Qual seria o melhor momento para conversar?',
-      'Posso compartilhar nosso catálogo de produtos?',
-      'Quando você teria disponibilidade para uma conversa rápida?'
-    ];
-
-    // Variações de estrutura (profissional) - SEMPRE com pergunta no final
-    const estruturas = [
-      // Estrutura 1: Apresentação + Contexto + Proposta + Pergunta
-      `${saudacoes[Math.floor(Math.random() * saudacoes.length)]},\n\n${introducoes[Math.floor(Math.random() * introducoes.length)]}.\n\n${contextos[Math.floor(Math.random() * contextos.length)]}.\n\n${propostas[Math.floor(Math.random() * propostas.length)]}.\n\n${perguntas[Math.floor(Math.random() * perguntas.length)]}?\n\nInstagram: @velloziaoficial`,
-      
-      // Estrutura 2: Apresentação + Pergunta + Proposta
-      `${saudacoes[Math.floor(Math.random() * saudacoes.length)]},\n\n${introducoes[Math.floor(Math.random() * introducoes.length)]}.\n\n${perguntas[Math.floor(Math.random() * perguntas.length)]}?\n\n${propostas[Math.floor(Math.random() * propostas.length)]}.\n\nInstagram: @velloziaoficial`,
-      
-      // Estrutura 3: Consultiva direta
-      `${saudacoes[Math.floor(Math.random() * saudacoes.length)]},\n\n${introducoes[Math.floor(Math.random() * introducoes.length)]}.\n\n${contextos[Math.floor(Math.random() * contextos.length)]}.\n\n${perguntas[Math.floor(Math.random() * perguntas.length)]}?\n\nInstagram: @velloziaoficial`,
-      
-      // Estrutura 4: Proposta + Contexto + Pergunta
-      `${saudacoes[Math.floor(Math.random() * saudacoes.length)]},\n\n${propostas[Math.floor(Math.random() * propostas.length)]}.\n\n${introducoes[Math.floor(Math.random() * introducoes.length)]}.\n\n${perguntas[Math.floor(Math.random() * perguntas.length)]}?\n\nInstagram: @velloziaoficial`,
-    ];
-
-    return estruturas[Math.floor(Math.random() * estruturas.length)];
-  };
 
   const abrirWhatsApp = (telefone: string, razaoSocial: string, municipio: string) => {
     if (!telefone) return;
