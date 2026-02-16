@@ -372,15 +372,34 @@ export default function Dashboard() {
       // Inserir em lotes de 100
       for (let i = 0; i < leadsParaInserir.length; i += BATCH_SIZE) {
         const batch = leadsParaInserir.slice(i, i + BATCH_SIZE);
+        
+        // Filtrar batch para remover duplicatas DENTRO do lote
+        const batchFiltrado = batch.filter(lead => {
+          if (lead.cnpj && cnpjsExistentes.has(lead.cnpj)) {
+            duplicadosIgnorados++;
+            return false;
+          }
+          if (lead.telefone && telefonesExistentes.has(lead.telefone)) {
+            duplicadosIgnorados++;
+            return false;
+          }
+          // Adicionar ao Set para evitar duplicatas dentro do mesmo lote
+          if (lead.cnpj) cnpjsExistentes.add(lead.cnpj);
+          if (lead.telefone) telefonesExistentes.add(lead.telefone);
+          return true;
+        });
+        
+        if (batchFiltrado.length === 0) continue;
+        
         const { error: insertError } = await supabase
           .from('leads')
-          .insert(batch);
+          .insert(batchFiltrado);
 
         if (insertError) {
           console.error('Erro ao inserir lote:', insertError);
           erros.push({ motivo: `Erro ao inserir lote ${Math.floor(i / BATCH_SIZE) + 1}: ${insertError.message}` });
         } else {
-          novosInseridos += batch.length;
+          novosInseridos += batchFiltrado.length;
         }
       }
 
