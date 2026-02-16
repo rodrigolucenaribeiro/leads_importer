@@ -391,15 +391,26 @@ export default function Dashboard() {
         
         if (batchFiltrado.length === 0) continue;
         
-        const { error: insertError } = await supabase
-          .from('leads')
-          .upsert(batchFiltrado, { onConflict: 'cnpj,telefone' });
-
-        if (insertError) {
-          console.error('Erro ao inserir lote:', insertError);
-          erros.push({ motivo: `Erro ao inserir lote ${Math.floor(i / BATCH_SIZE) + 1}: ${insertError.message}` });
-        } else {
-          novosInseridos += batchFiltrado.length;
+        try {
+          // Tentar inserir um por um para ignorar duplicatas
+          for (const lead of batchFiltrado) {
+            const { error } = await supabase
+              .from('leads')
+              .insert([lead]);
+            
+            if (!error) {
+              novosInseridos++;
+            } else if (error.code === '23505') {
+              // Duplicata - ignorar
+              duplicadosIgnorados++;
+            } else {
+              console.error('Erro ao inserir lead:', error);
+              erros.push({ motivo: `Erro ao inserir lead: ${error.message}` });
+            }
+          }
+        } catch (error) {
+          console.error('Erro ao processar lote:', error);
+          erros.push({ motivo: `Erro ao processar lote ${Math.floor(i / BATCH_SIZE) + 1}` });
         }
       }
 
