@@ -393,7 +393,7 @@ export default function Dashboard() {
         
         const { error: insertError } = await supabase
           .from('leads')
-          .upsert(batchFiltrado, { onConflict: 'telefone' });
+          .upsert(batchFiltrado, { onConflict: 'cnpj,telefone' });
 
         if (insertError) {
           console.error('Erro ao inserir lote:', insertError);
