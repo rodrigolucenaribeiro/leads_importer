@@ -431,40 +431,54 @@ export default function Dashboard() {
         if (batchFiltrado.length === 0) continue;
         
         try {
-          // Tentar inserir um por um com tratamento de erro 409
-          for (const lead of batchFiltrado) {
-            try {
-              const { error } = await supabase
-                .from('leads')
-                .insert([lead]);
-              
-              if (!error) {
-                novosInseridos++;
-              } else {
-                // Capturar qualquer erro de duplicata
-                if (error.code === '23505' || error.code === '409' || error.message?.includes('duplicate') || error.message?.includes('Conflict')) {
-                  duplicadosIgnorados++;
-                } else {
-                  erros.push({ motivo: `Erro ao inserir lead: ${error.message}` });
-                }
-              }
-            } catch (leadError: any) {
-              // Capturar erros de execução também
-              if (leadError?.message?.includes('409') || leadError?.message?.includes('duplicate') || leadError?.message?.includes('Conflict')) {
-                duplicadosIgnorados++;
-              } else {
-                erros.push({ motivo: `Erro ao inserir lead: ${leadError?.message || 'Erro desconhecido'}` });
-              }
+          // Verificar quais leads já existem no banco
+          const cnpjsVerificar = batchFiltrado.filter(l => l.cnpj).map(l => l.cnpj);
+          const telefonesVerificar = batchFiltrado.filter(l => l.telefone).map(l => l.telefone);
+          
+          let existentes = new Set();
+          if (cnpjsVerificar.length > 0) {
+            const { data: cnpjExistentes } = await supabase
+              .from('leads')
+              .select('cnpj')
+              .in('cnpj', cnpjsVerificar);
+            cnpjExistentes?.forEach(l => existentes.add(l.cnpj));
+          }
+          if (telefonesVerificar.length > 0) {
+            const { data: telefonesExistentes } = await supabase
+              .from('leads')
+              .select('telefone')
+              .in('telefone', telefonesVerificar);
+            telefonesExistentes?.forEach(l => existentes.add(l.telefone));
+          }
+          
+          // Filtrar apenas leads que não existem
+          const leadsNovos = batchFiltrado.filter(lead => {
+            if (lead.cnpj && existentes.has(lead.cnpj)) {
+              duplicadosIgnorados++;
+              return false;
+            }
+            if (lead.telefone && existentes.has(lead.telefone)) {
+              duplicadosIgnorados++;
+              return false;
+            }
+            return true;
+          });
+          
+          // Inserir apenas os novos
+          if (leadsNovos.length > 0) {
+            const { error } = await supabase
+              .from('leads')
+              .insert(leadsNovos);
+            
+            if (!error) {
+              novosInseridos += leadsNovos.length;
+            } else {
+              erros.push({ motivo: `Erro ao inserir lote: ${error.message}` });
             }
           }
         } catch (error: any) {
           console.error('Erro ao processar lote:', error);
-          // Mesmo com erro geral, contar como duplicatas se for 409
-          if (error?.message?.includes('409')) {
-            duplicadosIgnorados += batchFiltrado.length;
-          } else {
-            erros.push({ motivo: `Erro ao processar lote ${Math.floor(i / BATCH_SIZE) + 1}` });
-          }
+          erros.push({ motivo: `Erro ao processar lote ${Math.floor(i / BATCH_SIZE) + 1}: ${error?.message || 'Erro desconhecido'}` });
         }
         
         // Atualizar progresso
