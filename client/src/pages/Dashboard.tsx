@@ -9,6 +9,7 @@ import { LogOut, Upload, Loader2, Download, X, MessageCircle, Phone } from 'luci
 import { createClient } from '@supabase/supabase-js';
 import { useLocation } from 'wouter';
 import * as XLSX from 'xlsx';
+import html2pdf from 'html2pdf.js';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Pie } from 'react-chartjs-2';
 
@@ -70,6 +71,17 @@ interface LeadHistory {
   created_at: string;
 }
 
+interface Contato {
+  id: number;
+  lead_id: number;
+  vendedor_id: string;
+  tipo: 'whatsapp' | 'email' | 'ligacao';
+  mensagem: string;
+  data_envio: string;
+  status: 'enviado' | 'lido' | 'respondido';
+}
+
+
 
 
 export default function Dashboard() {
@@ -80,6 +92,7 @@ export default function Dashboard() {
   const [leadSelecionado, setLeadSelecionado] = useState<Lead | null>(null);
   const [notas, setNotas] = useState<LeadNote[]>([]);
   const [historico, setHistorico] = useState<LeadHistory[]>([]);
+  const [contatos, setContatos] = useState<Contato[]>([]);
   const [novaNota, setNovaNota] = useState('');
   const [proximaAcao, setProximaAcao] = useState('');
   const [whatsappChoice, setWhatsappChoice] = useState<{show: boolean; telefone: string; razaoSocial: string; municipio: string; leadId: number} | null>(null);
@@ -89,7 +102,7 @@ export default function Dashboard() {
   const [relatorio, setRelatorio] = useState<any>(null);
   const [preview, setPreview] = useState<any[]>([]);
   const [pagina, setPagina] = useState(1);
-  const [filtros, setFiltros] = useState({ busca: '', uf: '', ddd: '', municipio: '' });
+  const [filtros, setFiltros] = useState({ busca: '', uf: '', ddd: '', municipio: '', cnpj: '', email: '', telefone: '', status: '' });
   const [ufs, setUfs] = useState<string[]>([]);
   const [municipios, setMunicipios] = useState<string[]>([]);
   const [filaImportacao, setFilaImportacao] = useState<any[]>([]);
@@ -268,6 +281,9 @@ export default function Dashboard() {
     // Depois abre o WhatsApp imediatamente (sem delay)
     const numeroLimpo = telefone.replace(/\D/g, '');
     const mensagem = gerarMensagemWhatsApp(razaoSocial, municipio);
+    
+    // Registrar contato
+    await registrarContato(leadId, 'whatsapp', mensagem);
     
     // Detectar se é mobile
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -505,6 +521,84 @@ export default function Dashboard() {
       );
     }
     setProcessandoFila(false);
+  };
+
+
+  const exportarRelatorioPDF = () => {
+    if (!relatorio) return;
+    
+    const element = document.createElement('div');
+    element.innerHTML = `
+      <div style="padding: 20px; font-family: Arial, sans-serif;">
+        <h1>Relatório de Importação de Leads</h1>
+        <p><strong>Data:</strong> ${new Date().toLocaleString('pt-BR')}</p>
+        <p><strong>Vendedor:</strong> ${vendedor?.nome || 'N/A'}</p>
+        
+        <h2>Resumo</h2>
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+          <tr style="background-color: #f0f0f0;">
+            <td style="border: 1px solid #ddd; padding: 10px;"><strong>Total de linhas</strong></td>
+            <td style="border: 1px solid #ddd; padding: 10px;">${relatorio.totalLinhas}</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ddd; padding: 10px;"><strong>Novos inseridos</strong></td>
+            <td style="border: 1px solid #ddd; padding: 10px; color: green;">${relatorio.novosInseridos}</td>
+          </tr>
+          <tr style="background-color: #f0f0f0;">
+            <td style="border: 1px solid #ddd; padding: 10px;"><strong>Duplicados ignorados</strong></td>
+            <td style="border: 1px solid #ddd; padding: 10px; color: orange;">${relatorio.duplicadosIgnorados}</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ddd; padding: 10px;"><strong>Erros</strong></td>
+            <td style="border: 1px solid #ddd; padding: 10px; color: red;">${relatorio.errosTotal}</td>
+          </tr>
+          <tr style="background-color: #f0f0f0;">
+            <td style="border: 1px solid #ddd; padding: 10px;"><strong>Taxa de sucesso</strong></td>
+            <td style="border: 1px solid #ddd; padding: 10px;"><strong>${relatorio.totalLinhas > 0 ? (relatorio.novosInseridos / relatorio.totalLinhas * 100).toFixed(1) : 0}%</strong></td>
+          </tr>
+        </table>
+      </div>
+    `;
+    
+    const opt = {
+      margin: 10,
+      filename: \`relatorio-importacao-\${new Date().toISOString().split('T')[0]}.pdf\`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
+    };
+    
+    html2pdf().set(opt).from(element).save();
+  };
+
+
+  const registrarContato = async (leadId: number, tipo: 'whatsapp' | 'email' | 'ligacao', mensagem: string) => {
+    if (!supabase || !vendedor) return;
+    
+    const novoContato: Contato = {
+      id: Date.now(),
+      lead_id: leadId,
+      vendedor_id: vendedor.id,
+      tipo: tipo,
+      mensagem: mensagem,
+      data_envio: new Date().toLocaleString('pt-BR'),
+      status: 'enviado'
+    };
+    
+    setContatos([...contatos, novoContato]);
+    
+    // Salvar no Supabase (opcional)
+    try {
+      await supabase.from('contatos').insert([{
+        lead_id: leadId,
+        vendedor_id: vendedor.id,
+        tipo: tipo,
+        mensagem: mensagem,
+        status: 'enviado'
+      }]);
+    } catch (error) {
+      console.error('Erro ao salvar contato:', error);
+    }
   };
 
 
@@ -909,6 +1003,18 @@ export default function Dashboard() {
                   <CardHeader>
                     <CardTitle className="text-green-900">Relatório de Importação</CardTitle>
                   </CardHeader>
+                  <div className="px-6 py-2 border-b flex gap-2">
+                    <Button 
+                      onClick={exportarRelatorioPDF}
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                    >
+                      <Download className="w-4 h-4" />
+                      Exportar PDF
+                    </Button>
+                  </div>
+
                   <CardContent className="space-y-2 text-sm">
                     <div className="flex justify-center">
                       <div className="w-64 h-64">
