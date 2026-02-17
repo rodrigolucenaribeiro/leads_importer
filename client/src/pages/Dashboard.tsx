@@ -272,7 +272,7 @@ export default function Dashboard() {
     }
   };
 
-  const abrirWhatsAppEPegarLead = async (telefone: string, razaoSocial: string, municipio: string, leadId: number) => {
+  const abrirWhatsAppEPegarLead = async (telefone: string, razaoSocial: string, municipio: string, leadId: number, nomeFantasia?: string) => {
     if (!telefone) return;
     
     // Primeiro pega o lead
@@ -792,7 +792,7 @@ export default function Dashboard() {
                           <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
                             {lead.telefone && (
                               <Button
-                                onClick={() => abrirWhatsAppEPegarLead(lead.telefone, lead.razao_social, lead.municipio, lead.id)}
+                                onClick={() => abrirWhatsAppEPegarLead(lead.telefone, lead.razao_social, lead.municipio, lead.id, lead.nome_fantasia)}
                                 className="flex-1 sm:flex-none bg-green-600 hover:bg-green-700 text-white"
                               >
                                 <MessageCircle className="w-4 h-4 mr-2" />
