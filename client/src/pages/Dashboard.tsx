@@ -342,7 +342,7 @@ export default function Dashboard() {
       let duplicadosIgnorados = 0;
       let duplicadosAtualizados = 0;
       let erros: any[] = [];
-      const BATCH_SIZE = 100;
+      const BATCH_SIZE = 500; // Aumentado para 500 para arquivos grandes
 
       // Buscar TODOS os leads existentes uma vez (não 19.400 vezes!)
       const { data: leadsExistentes } = await supabase
@@ -408,7 +408,7 @@ export default function Dashboard() {
         }
       }
 
-      // Inserir em lotes de 100
+      // Inserir em lotes de 500 (muito mais rápido)
       for (let i = 0; i < leadsParaInserir.length; i += BATCH_SIZE) {
         const batch = leadsParaInserir.slice(i, i + BATCH_SIZE);
         
@@ -431,22 +431,28 @@ export default function Dashboard() {
         if (batchFiltrado.length === 0) continue;
         
         try {
-          // Tentar inserir um por um para ignorar duplicatas
-          for (const lead of batchFiltrado) {
-            const { error } = await supabase
-              .from('leads')
-              .insert([lead]);
-            
-            if (!error) {
-              novosInseridos++;
-            } else {
-              // Capturar duplicatas por código de erro ou mensagem
-              if (error.code === '23505' || error.code === '409' || error.message?.includes('duplicate') || error.message?.includes('Conflict')) {
-                // Duplicata - ignorar silenciosamente
-                duplicadosIgnorados++;
+          // Usar upsert em lote (muito mais rápido que um por um)
+          const { error: batchError } = await supabase
+            .from('leads')
+            .upsert(batchFiltrado, { onConflict: 'cnpj,telefone' });
+          
+          if (!batchError) {
+            novosInseridos += batchFiltrado.length;
+          } else {
+            // Se falhar, tentar um por um como fallback
+            for (const lead of batchFiltrado) {
+              const { error } = await supabase
+                .from('leads')
+                .insert([lead]);
+              
+              if (!error) {
+                novosInseridos++;
               } else {
-                console.error('Erro ao inserir lead:', error);
-                erros.push({ motivo: `Erro ao inserir lead: ${error.message}` });
+                if (error.code === '23505' || error.code === '409' || error.message?.includes('duplicate') || error.message?.includes('Conflict')) {
+                  duplicadosIgnorados++;
+                } else {
+                  erros.push({ motivo: `Erro ao inserir lead: ${error.message}` });
+                }
               }
             }
           }
@@ -454,6 +460,10 @@ export default function Dashboard() {
           console.error('Erro ao processar lote:', error);
           erros.push({ motivo: `Erro ao processar lote ${Math.floor(i / BATCH_SIZE) + 1}` });
         }
+        
+        // Atualizar progresso
+        const progresso = Math.min(100, Math.round((i + BATCH_SIZE) / leadsParaInserir.length * 100));
+        setMensagem(`Processando arquivo... ${progresso}%`);
       }
 
       const relatorioFinal = {
