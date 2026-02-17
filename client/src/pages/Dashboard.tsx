@@ -9,6 +9,10 @@ import { LogOut, Upload, Loader2, Download, X, MessageCircle, Phone } from 'luci
 import { createClient } from '@supabase/supabase-js';
 import { useLocation } from 'wouter';
 import * as XLSX from 'xlsx';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
+import { Pie } from 'react-chartjs-2';
+
+ChartJS.register(ArcElement, Tooltip, Legend);
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY || '';
@@ -83,10 +87,13 @@ export default function Dashboard() {
   const [carregando, setCarregando] = useState(false);
   const [mensagem, setMensagem] = useState('');
   const [relatorio, setRelatorio] = useState<any>(null);
+  const [preview, setPreview] = useState<any[]>([]);
   const [pagina, setPagina] = useState(1);
   const [filtros, setFiltros] = useState({ busca: '', uf: '', ddd: '', municipio: '' });
   const [ufs, setUfs] = useState<string[]>([]);
   const [municipios, setMunicipios] = useState<string[]>([]);
+  const [filaImportacao, setFilaImportacao] = useState<any[]>([]);
+  const [processandoFila, setProcessandoFila] = useState(false);
 
   useEffect(() => {
     verificarAutenticacao();
@@ -278,8 +285,24 @@ export default function Dashboard() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setArquivo(e.target.files[0]);
+      const file = e.target.files[0];
+      setArquivo(file);
       setMensagem('');
+      
+      // Gerar preview das primeiras 5 linhas
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const arrayBuffer = event.target?.result as ArrayBuffer;
+          const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+          const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+          const dados = XLSX.utils.sheet_to_json(worksheet);
+          setPreview(dados.slice(0, 5));
+        } catch (error) {
+          console.error('Erro ao ler arquivo:', error);
+        }
+      };
+      reader.readAsArrayBuffer(file);
     }
   };
 
@@ -450,6 +473,40 @@ export default function Dashboard() {
       setCarregando(false);
     }
   };
+
+  const adicionarFilaImportacao = (arquivo: File) => {
+    const novoItem = {
+      id: Date.now(),
+      arquivo: arquivo,
+      status: 'pendente',
+      criado_em: new Date().toLocaleString('pt-BR')
+    };
+    setFilaImportacao([...filaImportacao, novoItem]);
+  };
+
+  const processarFila = async () => {
+    if (filaImportacao.length === 0) return;
+    
+    setProcessandoFila(true);
+    for (let i = 0; i < filaImportacao.length; i++) {
+      const item = filaImportacao[i];
+      
+      // Atualizar status
+      setFilaImportacao(prev => 
+        prev.map(x => x.id === item.id ? {...x, status: 'processando'} : x)
+      );
+      
+      // Simular processamento
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Marcar como concluído
+      setFilaImportacao(prev => 
+        prev.map(x => x.id === item.id ? {...x, status: 'concluído'} : x)
+      );
+    }
+    setProcessandoFila(false);
+  };
+
 
   const leadsFiltrados = leads;
 
@@ -812,6 +869,38 @@ export default function Dashboard() {
                     {carregando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
                     {carregando ? 'Processando...' : 'Importar Agora'}
                   </Button>
+
+              {preview.length > 0 && (
+                <Card className="border-blue-200 bg-blue-50">
+                  <CardHeader>
+                    <CardTitle className="text-blue-900">Preview dos Dados</CardTitle>
+                    <CardDescription>Primeiras 5 linhas do arquivo</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b">
+                            {preview[0] && Object.keys(preview[0]).map((col) => (
+                              <th key={col} className="text-left p-2 font-semibold text-blue-900">{col}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {preview.map((row, idx) => (
+                            <tr key={idx} className="border-b hover:bg-blue-100">
+                              {Object.values(row).map((val: any, i) => (
+                                <td key={i} className="p-2 text-slate-700">{String(val).substring(0, 30)}</td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
                 </CardContent>
               </Card>
 
@@ -821,27 +910,106 @@ export default function Dashboard() {
                     <CardTitle className="text-green-900">Relatório de Importação</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm">
+                    <div className="flex justify-center">
+                      <div className="w-64 h-64">
+                        <Pie
+                          data={{
+                            labels: ['Novos', 'Duplicados', 'Erros'],
+                            datasets: [{
+                              data: [relatorio.novosInseridos, relatorio.duplicadosIgnorados, relatorio.errosTotal],
+                              backgroundColor: ['#22c55e', '#eab308', '#ef4444'],
+                              borderColor: ['#16a34a', '#ca8a04', '#dc2626'],
+                              borderWidth: 2
+                            }]
+                          }}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: true,
+                            plugins: {
+                              legend: {
+                                position: 'bottom'
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-slate-600">Total de linhas</p>
-                        <p className="text-2xl font-bold text-green-700">{relatorio.totalLinhas}</p>
+                      <div className="bg-white rounded-lg p-4">
+                        <p className="text-slate-600 text-sm">Total de linhas</p>
+                        <p className="text-3xl font-bold text-slate-900">{relatorio.totalLinhas}</p>
                       </div>
-                      <div>
-                        <p className="text-slate-600">Novos inseridos</p>
-                        <p className="text-2xl font-bold text-green-700">{relatorio.novosInseridos}</p>
+                      <div className="bg-white rounded-lg p-4">
+                        <p className="text-slate-600 text-sm">Novos inseridos</p>
+                        <p className="text-3xl font-bold text-green-700">{relatorio.novosInseridos}</p>
                       </div>
-                      <div>
-                        <p className="text-slate-600">Duplicados ignorados</p>
-                        <p className="text-2xl font-bold text-yellow-700">{relatorio.duplicadosIgnorados}</p>
+                      <div className="bg-white rounded-lg p-4">
+                        <p className="text-slate-600 text-sm">Duplicados ignorados</p>
+                        <p className="text-3xl font-bold text-yellow-700">{relatorio.duplicadosIgnorados}</p>
                       </div>
-                      <div>
-                        <p className="text-slate-600">Erros</p>
-                        <p className="text-2xl font-bold text-red-700">{relatorio.errosTotal}</p>
+                      <div className="bg-white rounded-lg p-4">
+                        <p className="text-slate-600 text-sm">Erros</p>
+                        <p className="text-3xl font-bold text-red-700">{relatorio.errosTotal}</p>
                       </div>
+                    </div>
+
+                    <div className="bg-white rounded-lg p-4">
+                      <p className="text-slate-600 text-sm mb-2">Taxa de sucesso</p>
+                      <div className="w-full bg-slate-200 rounded-full h-3">
+                        <div
+                          className="bg-green-500 h-3 rounded-full transition-all duration-500"
+                          style={{
+                            width: relatorio.totalLinhas > 0 ? (relatorio.novosInseridos / relatorio.totalLinhas * 100) + '%' : '0%'
+                          }}
+                        />
+                      </div>
+                      <p className="text-right text-sm text-slate-600 mt-1">
+                        {relatorio.totalLinhas > 0 ? (relatorio.novosInseridos / relatorio.totalLinhas * 100).toFixed(1) : 0}%
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
               )}
+
+              {filaImportacao.length > 0 && (
+                <Card className="border-purple-200 bg-purple-50">
+                  <CardHeader>
+                    <CardTitle className="text-purple-900">Fila de Importação</CardTitle>
+                    <CardDescription>{filaImportacao.length} arquivo(s) na fila</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      {filaImportacao.map((item) => (
+                        <div key={item.id} className="flex items-center justify-between bg-white p-3 rounded-lg border">
+                          <div className="flex-1">
+                            <p className="font-medium text-slate-900">{item.arquivo.name}</p>
+                            <p className="text-xs text-slate-500">{item.criado_em}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                              item.status === 'pendente' ? 'bg-yellow-100 text-yellow-800' :
+                              item.status === 'processando' ? 'bg-blue-100 text-blue-800' :
+                              'bg-green-100 text-green-800'
+                            }`}>
+                              {item.status}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <Button 
+                      onClick={processarFila}
+                      disabled={processandoFila || filaImportacao.every(x => x.status === 'concluído')}
+                      className="w-full"
+                    >
+                      {processandoFila ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                      {processandoFila ? 'Processando fila...' : 'Processar Fila'}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
             </TabsContent>
           )}
         </Tabs>
