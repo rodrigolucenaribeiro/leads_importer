@@ -562,10 +562,10 @@ export default function Dashboard() {
     
     const opt = {
       margin: 10,
-      filename: \`relatorio-importacao-\${new Date().toISOString().split('T')[0]}.pdf\`,
-      image: { type: 'jpeg', quality: 0.98 },
+      filename: `relatorio-importacao-${new Date().toISOString().split('T')[0]}.pdf`,
+      image: { type: 'png' as const, quality: 0.98 },
       html2canvas: { scale: 2 },
-      jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
+      jsPDF: { orientation: 'portrait' as const, unit: 'mm', format: 'a4' }
     };
     
     html2pdf().set(opt).from(element).save();
@@ -723,7 +723,7 @@ export default function Dashboard() {
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      setFiltros({ busca: '', uf: '', ddd: '', municipio: '' });
+                      setFiltros({ busca: '', uf: '', ddd: '', municipio: '', cnpj: '', email: '', telefone: '', status: '' });
                       setPagina(1);
                     }}
                     className="mt-4"
