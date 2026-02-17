@@ -400,8 +400,8 @@ export default function Dashboard() {
             
             if (!error) {
               novosInseridos++;
-            } else if (error.code === '23505') {
-              // Duplicata - ignorar
+            } else if (error.code === '23505' || error.code === '409') {
+              // Duplicata - ignorar (23505 = PostgreSQL, 409 = HTTP Conflict)
               duplicadosIgnorados++;
             } else {
               console.error('Erro ao inserir lead:', error);
