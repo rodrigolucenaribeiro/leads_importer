@@ -401,12 +401,9 @@ export default function Dashboard() {
             if (!error) {
               novosInseridos++;
             } else {
-              // Log detalhado do erro para debugging
-              console.error('Erro completo:', { code: error.code, message: error.message, details: error.details });
-              
               // Capturar duplicatas por código de erro ou mensagem
               if (error.code === '23505' || error.code === '409' || error.message?.includes('duplicate') || error.message?.includes('Conflict')) {
-                // Duplicata - ignorar (23505 = PostgreSQL, 409 = HTTP Conflict)
+                // Duplicata - ignorar silenciosamente
                 duplicadosIgnorados++;
               } else {
                 console.error('Erro ao inserir lead:', error);
