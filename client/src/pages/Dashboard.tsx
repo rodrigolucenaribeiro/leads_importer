@@ -431,16 +431,9 @@ export default function Dashboard() {
         if (batchFiltrado.length === 0) continue;
         
         try {
-          // Usar upsert em lote (muito mais rápido que um por um)
-          const { error: batchError } = await supabase
-            .from('leads')
-            .upsert(batchFiltrado, { onConflict: 'cnpj,telefone' });
-          
-          if (!batchError) {
-            novosInseridos += batchFiltrado.length;
-          } else {
-            // Se falhar, tentar um por um como fallback
-            for (const lead of batchFiltrado) {
+          // Tentar inserir um por um com tratamento de erro 409
+          for (const lead of batchFiltrado) {
+            try {
               const { error } = await supabase
                 .from('leads')
                 .insert([lead]);
@@ -448,17 +441,30 @@ export default function Dashboard() {
               if (!error) {
                 novosInseridos++;
               } else {
+                // Capturar qualquer erro de duplicata
                 if (error.code === '23505' || error.code === '409' || error.message?.includes('duplicate') || error.message?.includes('Conflict')) {
                   duplicadosIgnorados++;
                 } else {
                   erros.push({ motivo: `Erro ao inserir lead: ${error.message}` });
                 }
               }
+            } catch (leadError: any) {
+              // Capturar erros de execução também
+              if (leadError?.message?.includes('409') || leadError?.message?.includes('duplicate') || leadError?.message?.includes('Conflict')) {
+                duplicadosIgnorados++;
+              } else {
+                erros.push({ motivo: `Erro ao inserir lead: ${leadError?.message || 'Erro desconhecido'}` });
+              }
             }
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error('Erro ao processar lote:', error);
-          erros.push({ motivo: `Erro ao processar lote ${Math.floor(i / BATCH_SIZE) + 1}` });
+          // Mesmo com erro geral, contar como duplicatas se for 409
+          if (error?.message?.includes('409')) {
+            duplicadosIgnorados += batchFiltrado.length;
+          } else {
+            erros.push({ motivo: `Erro ao processar lote ${Math.floor(i / BATCH_SIZE) + 1}` });
+          }
         }
         
         // Atualizar progresso
