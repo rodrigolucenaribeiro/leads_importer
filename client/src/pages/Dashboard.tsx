@@ -161,7 +161,7 @@ export default function Dashboard() {
           .neq('uf', null);
         
         if (ufsData) {
-          const ufsUnicos = [...new Set(ufsData.map(l => l.uf))].sort();
+          const ufsUnicos = Array.from(new Set(ufsData.map(l => l.uf))).sort();
           setUfs(ufsUnicos);
         }
 
@@ -174,7 +174,7 @@ export default function Dashboard() {
             .neq('municipio', null);
           
           if (municipiosData) {
-            const municipiosUnicos = [...new Set(municipiosData.map(l => l.municipio))].sort();
+            const municipiosUnicos = Array.from(new Set(municipiosData.map(l => l.municipio))).sort();
             setMunicipios(municipiosUnicos);
           }
         }
