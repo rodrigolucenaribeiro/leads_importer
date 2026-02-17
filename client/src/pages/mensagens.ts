@@ -1,35 +1,38 @@
-export const gerarMensagemWhatsApp = (razaoSocial: string, municipio: string) => {
-  // Mensagens profissionais com call-to-action claro que geram diálogo
+export const gerarMensagemWhatsApp = (razaoSocial: string, municipio: string, nomeFantasia?: string) => {
+  // Extrair nome da empresa para personalização
+  const nomeEmpresa = nomeFantasia || razaoSocial.split(' ')[0];
+  
+  // Mensagens profissionais, sem spam, com CTA eficiente
   const mensagens = [
-    // Mensagem 1 - Pergunta sobre fornecedor atual
-    `Olá! 👋\n\nSomos Vellozia Produtos Hospitalares - distribuidora de toxinas, preenchedores e bioestimuladores com 9 filiais pelo Brasil.\n\nVi que vocês atuam em ${municipio}. Qual é o seu fornecedor atual de produtos para harmonização?\n\nTemos condições especiais e suporte técnico diferenciado.\n\n📱 Posso enviar nossa tabela de preços?\n\nInstagram: @velloziaoficial`,
+    // Mensagem 1 - Direto e profissional
+    `Olá ${nomeEmpresa},\n\nSomos a Vellozia Produtos Hospitalares, distribuidora especializada em produtos para harmonização facial e corporal. Atendemos consultórios em ${municipio} com suporte técnico diferenciado.\n\nQual é seu fornecedor atual? Podemos oferecer melhores condições.\n\nInstagram: @velloziaoficial`,
     
-    // Mensagem 2 - Proposta de economia
-    `Olá! 👋\n\nVellozia Produtos Hospitalares aqui.\n\nTrabalhamos com consultórios e clínicas em ${municipio} oferecendo produtos premium com melhor custo-benefício.\n\nVocês gostariam de conhecer alternativas que reduzem custos sem perder qualidade?\n\n📱 Posso agendar uma conversa breve?\n\nInstagram: @velloziaoficial`,
+    // Mensagem 2 - Foco em economia
+    `${nomeEmpresa}, tudo bem?\n\nVellozia aqui. Consultórios em ${municipio} que trabalham conosco reduzem custos em até 30% sem perder qualidade.\n\nTem interesse em conhecer nossas propostas?\n\nInstagram: @velloziaoficial`,
     
-    // Mensagem 3 - Pergunta sobre volume
-    `Olá! 👋\n\nSou da Vellozia Produtos Hospitalares. Somos especialistas em distribuição de produtos para harmonização facial e corporal.\n\nQual é o seu volume mensal de procedimentos com toxinas e preenchedores em ${municipio}?\n\nTemos portfólio completo e suporte técnico 24/7.\n\n📱 Podemos conversar sobre uma parceria?\n\nInstagram: @velloziaoficial`,
+    // Mensagem 3 - Pergunta estratégica
+    `Olá ${nomeEmpresa},\n\nSou da Vellozia Produtos Hospitalares. Qual é seu volume mensal em procedimentos com toxinas e preenchedores?\n\nTemos portfólio completo com suporte 24/7 para clínicas em ${municipio}.\n\nPodemos conversar?\n\nInstagram: @velloziaoficial`,
     
-    // Mensagem 4 - Urgência com benefício
-    `Olá! 👋\n\nVellozia Produtos Hospitalares - Distribuidora com 9 filiais pelo Brasil.\n\nEste mês temos promoção especial em preenchedores e bioestimuladores para clínicas em ${municipio}.\n\nVocês têm interesse em conhecer nossas ofertas?\n\n📱 Posso enviar o catálogo completo com preços?\n\nInstagram: @velloziaoficial`,
+    // Mensagem 4 - Oferta com prazo
+    `${nomeEmpresa}, boa notícia!\n\nVellozia tem promoção especial em preenchedores e bioestimuladores esta semana para clínicas em ${municipio}.\n\nGostaria de conhecer nossas ofertas?\n\nInstagram: @velloziaoficial`,
     
-    // Mensagem 5 - Comparação com concorrência
-    `Olá! 👋\n\nSou da Vellozia Produtos Hospitalares.\n\nMuitos consultórios em ${municipio} já trabalham conosco e conseguem reduzir custos em até 30%.\n\nVocês estariam abertos a uma proposta comercial personalizada?\n\n📱 Qual seria o melhor momento para conversar?\n\nInstagram: @velloziaoficial`,
+    // Mensagem 5 - Prova social
+    `Olá ${nomeEmpresa},\n\nMuitos consultórios em ${municipio} já trabalham com a Vellozia. Somos distribuidora com 9 filiais pelo Brasil.\n\nQual seria o melhor momento para conversarmos sobre uma parceria?\n\nInstagram: @velloziaoficial`,
     
-    // Mensagem 6 - Suporte técnico como diferencial
-    `Olá! 👋\n\nVellozia Produtos Hospitalares aqui.\n\nAlém de produtos de qualidade, oferecemos suporte técnico diferenciado para consultórios em ${municipio}.\n\nVocês buscam um fornecedor com consultoria e acompanhamento?\n\n📱 Posso passar mais detalhes sobre nossos serviços?\n\nInstagram: @velloziaoficial`,
+    // Mensagem 6 - Suporte como diferencial
+    `${nomeEmpresa}, tudo bem?\n\nVellozia oferece não só produtos de qualidade, mas também consultoria e acompanhamento técnico.\n\nVocês buscam um fornecedor com esse tipo de suporte?\n\nInstagram: @velloziaoficial`,
     
-    // Mensagem 7 - Certificação e segurança
-    `Olá! 👋\n\nSou da Vellozia Produtos Hospitalares - Distribuidora com certificação internacional.\n\nTrabalhamos com produtos 100% originais e rastreáveis para procedimentos em ${municipio}.\n\nQual é seu principal critério na escolha de fornecedores?\n\n📱 Gostaria de conhecer nossos diferenciais?\n\nInstagram: @velloziaoficial`,
+    // Mensagem 7 - Segurança e rastreabilidade
+    `Olá ${nomeEmpresa},\n\nSomos Vellozia - distribuidora com certificação internacional. Todos os produtos são 100% originais e rastreáveis.\n\nQual é seu principal critério na escolha de fornecedores?\n\nInstagram: @velloziaoficial`,
     
-    // Mensagem 8 - Urgência com oferta limitada
-    `Olá! 👋\n\nVellozia Produtos Hospitalares.\n\nTemos estoque limitado de produtos premium para harmonização em ${municipio}.\n\nVocês têm interesse em garantir preços especiais antes que se esgotem?\n\n📱 Posso agendar uma ligação rápida amanhã?\n\nInstagram: @velloziaoficial`,
+    // Mensagem 8 - Urgência moderada
+    `${nomeEmpresa}, atenção!\n\nVellozia tem estoque limitado de produtos premium para harmonização. Preços especiais apenas esta semana.\n\nTem interesse em garantir os melhores preços?\n\nInstagram: @velloziaoficial`,
     
-    // Mensagem 9 - Referência social
-    `Olá! 👋\n\nSou da Vellozia Produtos Hospitalares.\n\nVários consultórios em ${municipio} já confiam em nossos produtos e suporte.\n\nVocês gostariam de saber por que eles escolhem a Vellozia?\n\n📱 Posso enviar referências de clientes satisfeitos?\n\nInstagram: @velloziaoficial`,
+    // Mensagem 9 - Referência de clientes
+    `Olá ${nomeEmpresa},\n\nVários consultórios em ${municipio} já confiam na Vellozia. Podemos compartilhar referências de clientes satisfeitos.\n\nGostaria de conhecer por que eles nos escolhem?\n\nInstagram: @velloziaoficial`,
     
-    // Mensagem 10 - Desconto por indicação
-    `Olá! 👋\n\nVellozia Produtos Hospitalares aqui.\n\nPara consultórios em ${municipio}, oferecemos desconto especial se vocês indicarem colegas.\n\nVocês estariam interessados em uma parceria com benefícios mútuos?\n\n📱 Qual seria o melhor horário para uma conversa?\n\nInstagram: @velloziaoficial`,
+    // Mensagem 10 - Parceria com benefícios
+    `${nomeEmpresa}, tudo bem?\n\nVellozia oferece programa especial para consultórios em ${municipio}: descontos progressivos e suporte dedicado.\n\nPodemos conversar sobre uma parceria?\n\nInstagram: @velloziaoficial`,
   ];
 
   return mensagens[Math.floor(Math.random() * mensagens.length)];

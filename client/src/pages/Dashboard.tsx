@@ -230,10 +230,10 @@ export default function Dashboard() {
 
 
 
-  const abrirWhatsApp = (telefone: string, razaoSocial: string, municipio: string) => {
+  const abrirWhatsApp = (telefone: string, razaoSocial: string, municipio: string, nomeFantasia?: string) => {
     if (!telefone) return;
     const numeroLimpo = telefone.replace(/\D/g, '');
-    const mensagem = gerarMensagemWhatsApp(razaoSocial, municipio);
+    const mensagem = gerarMensagemWhatsApp(razaoSocial, municipio, nomeFantasia);
     const url = `https://wa.me/55${numeroLimpo}?text=${encodeURIComponent(mensagem)}`;
     window.open(url, '_blank');
   };
@@ -280,7 +280,7 @@ export default function Dashboard() {
     
     // Depois abre o WhatsApp imediatamente (sem delay)
     const numeroLimpo = telefone.replace(/\D/g, '');
-    const mensagem = gerarMensagemWhatsApp(razaoSocial, municipio);
+    const mensagem = gerarMensagemWhatsApp(razaoSocial, municipio, nomeFantasia);
     
     // Registrar contato
     await registrarContato(leadId, 'whatsapp', mensagem);
