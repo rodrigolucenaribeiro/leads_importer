@@ -112,9 +112,16 @@ export default function Dashboard() {
     verificarAutenticacao();
   }, []);
 
+  // Carregar UFs apenas uma vez quando vendedor faz login
   useEffect(() => {
     if (vendedor) {
       carregarUfsDisponiveis();
+    }
+  }, [vendedor]);
+
+  // Carregar leads quando filtros mudam
+  useEffect(() => {
+    if (vendedor) {
       carregarLeads();
       carregarMeuLeads();
     }
@@ -129,7 +136,7 @@ export default function Dashboard() {
         .from('leads')
         .select('uf')
         .not('uf', 'is', null)
-        .order('uf');
+        .limit(10000);
       
       if (ufsData) {
         const ufsUnicos = Array.from(new Set(ufsData.map(l => l.uf?.trim().toUpperCase()).filter(Boolean))).sort();
