@@ -138,8 +138,18 @@ export default function Dashboard() {
         .not('uf', 'is', null)
         .limit(10000);
       
+      console.log('🔍 [DEBUG] Total de registros retornados:', ufsData?.length);
+      console.log('🔍 [DEBUG] Primeiros 10 registros:', ufsData?.slice(0, 10));
+      
       if (ufsData) {
+        const ufsRaw = ufsData.map(l => l.uf);
+        console.log('🔍 [DEBUG] UFs brutas (com duplicatas):', ufsRaw.slice(0, 20));
+        
         const ufsUnicos = Array.from(new Set(ufsData.map(l => l.uf?.trim().toUpperCase()).filter(Boolean))).sort();
+        console.log('🔍 [DEBUG] UFs únicas após processamento:', ufsUnicos);
+        console.log('🔍 [DEBUG] Total de UFs únicas:', ufsUnicos.length);
+        console.log('🔍 [DEBUG] RJ está na lista?', ufsUnicos.includes('RJ'));
+        
         setUfs(ufsUnicos);
       }
     } catch (error) {
