@@ -646,10 +646,17 @@ export default function Dashboard() {
             <h1 className="text-2xl font-bold text-slate-900">Importador de Leads</h1>
             <p className="text-sm text-slate-600">Bem-vindo, {vendedor.nome}!</p>
           </div>
-          <Button variant="outline" onClick={handleLogout}>
-            <LogOut className="w-4 h-4 mr-2" />
-            Sair
-          </Button>
+          <div className="flex gap-2">
+            {vendedor.is_admin && (
+              <Button variant="default" onClick={() => setLocation('/admin')}>
+                Dashboard Admin
+              </Button>
+            )}
+            <Button variant="outline" onClick={handleLogout}>
+              <LogOut className="w-4 h-4 mr-2" />
+              Sair
+            </Button>
+          </div>
         </div>
       </div>
 
