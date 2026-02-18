@@ -114,10 +114,31 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (vendedor) {
+      carregarUfsDisponiveis();
       carregarLeads();
       carregarMeuLeads();
     }
   }, [vendedor, filtros, pagina]);
+
+  const carregarUfsDisponiveis = async () => {
+    if (!supabase) return;
+
+    try {
+      // Carregar TODAS as UFs disponíveis no banco, sem filtros
+      const { data: ufsData } = await supabase
+        .from('leads')
+        .select('uf')
+        .not('uf', 'is', null)
+        .order('uf');
+      
+      if (ufsData) {
+        const ufsUnicos = Array.from(new Set(ufsData.map(l => l.uf?.trim().toUpperCase()).filter(Boolean))).sort();
+        setUfs(ufsUnicos);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar UFs:', error);
+    }
+  };
 
   const verificarAutenticacao = async () => {
     if (!supabase) {
@@ -173,17 +194,6 @@ export default function Dashboard() {
       const { data } = await query;
       if (data) {
         setLeads(data);
-        
-        // Carregar UFs únicos
-        const { data: ufsData } = await supabase
-          .from('leads')
-          .select('uf')
-          .neq('uf', null);
-        
-        if (ufsData) {
-          const ufsUnicos = Array.from(new Set(ufsData.map(l => l.uf))).sort();
-          setUfs(ufsUnicos);
-        }
 
         // Carregar municípios do UF selecionado
         if (filtros.uf) {
